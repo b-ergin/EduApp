@@ -32,7 +32,12 @@ Route::get('/quizzes/{quiz}/questions/{question}', function ($quizId, $questionI
 });
 
 Route::post('/quizzes/{quiz}/questions/{question}', function (Request $request, $quizId, $questionId) {
-   $choiceId = $request->input('choice_id');
+    $choiceId = $request->input('choice_id');
     $choice = \App\Models\Choice::find($choiceId);
-    return redirect()->back()->with('result', $choice->is_correct);
+
+    return redirect()->back()->with([
+        'result' => $choice->is_correct,
+        'answered_question_id' => (int) $questionId,
+        'selected_choice_id' => (int) $choiceId,
+    ]);
 });
