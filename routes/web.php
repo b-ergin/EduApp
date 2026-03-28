@@ -19,7 +19,16 @@ Route::get('/quizzes/{quiz}/questions/{question}', function ($quizId, $questionI
     $quiz = Quiz::find($quizId);
     $question = Question::with('choices')->find($questionId);
 
-    return view('single-question', ['quiz' => $quiz, 'question' => $question, 'nextQuestion' => $nextQuestion]);
+    $nextQuestion = Question::where('quiz_id', $quiz->id)
+        ->where('id', '>', $question->id)
+        ->orderBy('id')
+        ->first();
+
+    return view('single-question', [
+        'quiz' => $quiz,
+        'question' => $question,
+        'nextQuestion' => $nextQuestion
+    ]);
 });
 
 Route::post('/quizzes/{quiz}/questions/{question}', function (Request $request, $quizId, $questionId) {

@@ -6,13 +6,13 @@
 @endif
 
 @if (session()->has('result') && $nextQuestion)
-    <a href="/quizzes/{{ $quiz->id }}/questions/{{ $question->id}}">
+    <a href="/quizzes/{{ $quiz->id }}/questions/{{ $nextQuestion->id }}">
         Next Question
     </a>
 @endif
 
-@if (session()-> has('result') && !$nextQuestion)
-    <p>Completed</p>
+@if (session()->has('result') && !$nextQuestion)
+    <p>You finished this quiz.</p>
 @endif
 
 <form method="POST" action="/quizzes/{{ $quiz->id }}/questions/{{ $question->id }}">
