@@ -11,6 +11,10 @@
     </a>
 @endif
 
+@if (session()-> has('result') && !$nextQuestion)
+    <p>Completed</p>
+@endif
+
 <form method="POST" action="/quizzes/{{ $quiz->id }}/questions/{{ $question->id }}">
     @csrf
     @foreach ($question->choices as $choice)
