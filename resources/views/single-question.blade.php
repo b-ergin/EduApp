@@ -57,10 +57,26 @@
         .result {
             margin: 0 0 14px;
             font-weight: 600;
+            padding: 10px 12px;
+            border-radius: 10px;
+            animation: popIn 220ms ease-out;
         }
 
-        .correct { color: var(--success); }
-        .wrong { color: var(--danger); }
+        .correct { 
+            color: #166534;
+            background: #dcfce7;
+            border: 1px solid #86efac;
+        }
+        .wrong { 
+            color: #991b1b;
+            background: #fee2e2;
+            border: 1px solid #fca5a5; 
+        }
+
+        @keyframes popIn {
+            0% { transform: scale(0.97); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
 
         .option {
             display: block;
@@ -201,6 +217,11 @@
                 </label>
             @endforeach
 
+            @error('choice_id')
+                <p class="wrong" style="margin-top:8px;">{{ $message }}</p>
+            @enderror
+
+
 
             @if (!$answered)
                 <button type="submit" class="btn">Submit Answer</button>
@@ -210,9 +231,10 @@
 
             @if ($answered)
                 <p class="result {{ session('result') ? 'correct' : 'wrong' }}">
-                    {{ session('result') ? 'Correct!' : 'Wrong!' }}
+                    {{ session('result') ? 'Nice work, that is correct.' : 'Not quite, but good try.' }}
                 </p>
             @endif
+
 
             @if ($answered && $nextQuestion)
             <a class="next-link" href="/quizzes/{{ $quiz->id }}/questions/{{ $nextQuestion->id }}">
