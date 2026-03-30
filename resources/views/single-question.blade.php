@@ -48,6 +48,29 @@
             font-size: 1.2rem;
         }
 
+        .progress-meta {
+            margin: 0 0 10px;
+            color: var(--muted);
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+
+        .progress-track {
+            width: 100%;
+            height: 8px;
+            border-radius: 999px;
+            background: #e5e7eb;
+            overflow: hidden;
+            margin: 0 0 16px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            border-radius: 999px;
+            background: linear-gradient(90deg, #0f766e, #14b8a6);
+            transition: width 250ms ease;
+        }
+
         .question {
             margin: 0 0 18px;
             font-size: 1.05rem;
@@ -180,6 +203,10 @@
 <div class="phone">
     <div class="card">
         <h1>Question</h1>
+        <p class="progress-meta">Question {{ $currentIndex }} of {{ $totalQuestions }}</p>
+        <div class="progress-track" aria-label="Quiz progress">
+            <div class="progress-fill" style="width: {{ $progressPercent }}%;"></div>
+        </div>
         <p class="question">{{ $question->question_text }}</p>
 
         @if ($answered && !$nextQuestion)

@@ -24,10 +24,18 @@ Route::get('/quizzes/{quiz}/questions/{question}', function ($quizId, $questionI
         ->orderBy('id')
         ->first();
 
+    $totalQuestions = Question::where('quiz_id', $quiz->id)->count();
+    $currentIndex = Question::where('quiz_id', $quiz->id)->where('id', '<=', $question->id)->count();
+    $progressPercent = $totalQuestions > 0 ? (int) round(($currentIndex / $totalQuestions) * 100) : 0;
+   
+
     return view('single-question', [
         'quiz' => $quiz,
         'question' => $question,
-        'nextQuestion' => $nextQuestion
+        'nextQuestion' => $nextQuestion,
+        'totalQuestions' => $totalQuestions,
+        'currentIndex' => $currentIndex,
+        'progressPercent' => $progressPercent,
     ]);
 });
 
@@ -51,4 +59,3 @@ Route::post('/quizzes/{quiz}/questions/{question}', function (Request $request, 
         'selected_choice_id' => (int) $validated['choice_id'],
     ]);
 });
-
