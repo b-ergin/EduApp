@@ -8,7 +8,7 @@ use App\Models\Quiz;
 
 class Question extends Model
 {
-    protected $fillable = ['question_text', 'quiz_id'];
+    protected $fillable = ['question_text', 'quiz_id', 'image_path'];
     public function choices()
     {
     return $this->hasMany(Choice::class);
