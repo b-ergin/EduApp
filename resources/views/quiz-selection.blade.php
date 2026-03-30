@@ -103,6 +103,90 @@
             gap: 12px;
         }
 
+        .map {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 14px;
+            margin-bottom: 14px;
+        }
+
+        .map h2 {
+            margin: 0;
+            font-size: 1.02rem;
+        }
+
+        .map p {
+            margin: 6px 0 0;
+            font-size: 0.86rem;
+            color: var(--muted);
+        }
+
+        .map-track {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+            gap: 10px;
+            margin-top: 12px;
+        }
+
+        .node {
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 10px;
+            background: #fff;
+        }
+
+        .node-locked {
+            background: #f8fafc;
+            border-color: #d1d5db;
+            opacity: 0.82;
+        }
+
+        .node-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+
+        .node-num {
+            width: 28px;
+            height: 28px;
+            border-radius: 999px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.8rem;
+            background: #dbeafe;
+            color: #1e3a8a;
+        }
+
+        .node-complete .node-num {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .node-locked .node-num {
+            background: #e5e7eb;
+            color: #6b7280;
+        }
+
+        .node-title {
+            margin: 8px 0 4px;
+            font-size: 0.9rem;
+            font-weight: 700;
+        }
+
+        .node-link {
+            display: inline-block;
+            margin-top: 8px;
+            text-decoration: none;
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: #0f766e;
+        }
+
         .card {
             background: var(--card);
             border: 1px solid var(--border);
@@ -240,6 +324,55 @@
             <button type="submit" class="btn">Apply Filters</button>
         </div>
     </form>
+
+    @if (count($mapNodes) > 0)
+        <section class="map">
+            <h2>Adventure Path</h2>
+            <p>Complete quizzes in order to unlock the next node.</p>
+
+            <div class="map-track">
+                @foreach ($mapNodes as $index => $node)
+                    @php
+                        $quizNode = $node['quiz'];
+                        $status = $node['status'];
+                        $isUnlocked = $node['unlocked'];
+                        $isCompleted = $status === 'completed';
+                        $nodeClass = 'node';
+                        if (! $isUnlocked) {
+                            $nodeClass .= ' node-locked';
+                        }
+                        if ($isCompleted) {
+                            $nodeClass .= ' node-complete';
+                        }
+                    @endphp
+
+                    <article class="{{ $nodeClass }}">
+                        <div class="node-head">
+                            <span class="node-num">{{ $index + 1 }}</span>
+                            @if ($isCompleted)
+                                <span class="badge badge-completed">Done</span>
+                            @elseif ($status === 'in_progress')
+                                <span class="badge badge-progress">Current</span>
+                            @elseif (! $isUnlocked)
+                                <span class="badge badge-new">Locked</span>
+                            @else
+                                <span class="badge badge-new">Open</span>
+                            @endif
+                        </div>
+
+                        <p class="node-title">{{ $quizNode->title }}</p>
+                        <p class="progress-text">{{ $node['percent'] }}% complete</p>
+
+                        @if ($isUnlocked)
+                            <a class="node-link" href="{{ route('student.quiz.start', $quizNode) }}">
+                                {{ $isCompleted ? 'Play Again' : ($status === 'in_progress' ? 'Resume Node' : 'Start Node') }}
+                            </a>
+                        @endif
+                    </article>
+                @endforeach
+            </div>
+        </section>
+    @endif
 
     @if ($quizzes->count() === 0)
         <div class="empty">No quizzes match your filters yet.</div>

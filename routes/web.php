@@ -72,10 +72,28 @@ Route::get('/quizzes', function (Request $request) {
         ];
     }
 
+    $mapNodes = [];
+    $previousCompleted = true;
+    foreach ($quizzes as $quiz) {
+        $progress = $progressByQuiz[$quiz->id];
+        $status = $progress['status'];
+        $isUnlocked = $status !== 'not_started' || $previousCompleted;
+
+        $mapNodes[] = [
+            'quiz' => $quiz,
+            'status' => $status,
+            'unlocked' => $isUnlocked,
+            'percent' => $progress['percent'],
+        ];
+
+        $previousCompleted = $progress['completed'];
+    }
+
     return view('quiz-selection', [
         'quizzes' => $quizzes,
         'grades' => Grade::orderBy('name')->get(),
         'progressByQuiz' => $progressByQuiz,
+        'mapNodes' => $mapNodes,
         'search' => $search,
         'selectedGrade' => $selectedGrade,
     ]);
@@ -84,6 +102,25 @@ Route::get('/quizzes', function (Request $request) {
 Route::get('/quizzes/{quiz}/start', function (Request $request, Quiz $quiz) {
     $progress = $request->session()->get('student_progress', []);
     $quizProgress = $progress[$quiz->id] ?? [];
+
+    if (! $request->boolean('restart')) {
+        $orderedQuizIds = Quiz::orderBy('title')->pluck('id')->values();
+        $currentIndex = $orderedQuizIds->search($quiz->id);
+        $previousQuizId = $currentIndex !== false && $currentIndex > 0 ? $orderedQuizIds[$currentIndex - 1] : null;
+        $currentStatus = $quizProgress['completed'] ?? false
+            ? 'completed'
+            : (count($quizProgress['answered_question_ids'] ?? []) > 0 ? 'in_progress' : 'not_started');
+
+        $previousCompleted = $previousQuizId
+            ? (bool) (($progress[$previousQuizId]['completed'] ?? false))
+            : true;
+
+        if ($currentStatus === 'not_started' && ! $previousCompleted) {
+            return redirect()->route('student.quizzes')->withErrors([
+                'quiz' => 'This quiz is locked. Complete the previous node first.',
+            ]);
+        }
+    }
 
     if ($request->boolean('restart')) {
         $quizProgress = [
