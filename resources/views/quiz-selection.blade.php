@@ -122,69 +122,113 @@
             color: var(--muted);
         }
 
-        .map-track {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
-            gap: 10px;
-            margin-top: 12px;
+        .path {
+            position: relative;
+            max-width: 450px;
+            margin: 16px auto 0;
+            padding: 8px 0 4px;
         }
 
-        .node {
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 10px;
-            background: #fff;
+        .map-svg {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 0;
         }
 
-        .node-locked {
-            background: #f8fafc;
-            border-color: #d1d5db;
-            opacity: 0.82;
+        .map-connection {
+            fill: none;
+            stroke: #d6dee9;
+            stroke-width: 6;
+            stroke-linecap: round;
+            stroke-linejoin: round;
         }
 
-        .node-head {
+        .node-item {
+            position: relative;
+            width: 50%;
+            margin-bottom: 10px;
             display: flex;
+            flex-direction: column;
             align-items: center;
-            justify-content: space-between;
-            gap: 8px;
+            z-index: 1;
         }
 
-        .node-num {
-            width: 28px;
-            height: 28px;
+        .node-left {
+            margin-right: auto;
+        }
+
+        .node-right {
+            margin-left: auto;
+        }
+
+        .node-bubble {
+            width: 84px;
+            height: 84px;
             border-radius: 999px;
+            border: 4px solid #7dd3fc;
+            background: #eff6ff;
+            color: #1e3a8a;
             display: inline-flex;
+            flex-direction: column;
             align-items: center;
             justify-content: center;
-            font-weight: 700;
-            font-size: 0.8rem;
-            background: #dbeafe;
-            color: #1e3a8a;
+            font-weight: 800;
+            box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
+            text-decoration: none;
         }
 
-        .node-complete .node-num {
-            background: #dcfce7;
+        .node-bubble:hover {
+            transform: translateY(-2px);
+        }
+
+        .node-number {
+            font-size: 1.2rem;
+            line-height: 1;
+        }
+
+        .node-state {
+            font-size: 0.65rem;
+            margin-top: 3px;
+            letter-spacing: 0.03em;
+        }
+
+        .node-complete .node-bubble {
+            border-color: #86efac;
+            background: #ecfdf5;
             color: #166534;
         }
 
-        .node-locked .node-num {
-            background: #e5e7eb;
+        .node-progress .node-bubble {
+            border-color: #fcd34d;
+            background: #fffbeb;
+            color: #92400e;
+        }
+
+        .node-locked .node-bubble {
+            border-color: #d1d5db;
+            background: #f3f4f6;
             color: #6b7280;
+            box-shadow: none;
+            cursor: not-allowed;
+            pointer-events: none;
         }
 
         .node-title {
-            margin: 8px 0 4px;
-            font-size: 0.9rem;
-            font-weight: 700;
-        }
-
-        .node-link {
-            display: inline-block;
-            margin-top: 8px;
-            text-decoration: none;
+            margin: 7px 0 2px;
             font-size: 0.8rem;
             font-weight: 700;
-            color: #0f766e;
+            line-height: 1.3;
+            text-align: center;
+            max-width: 150px;
+        }
+
+        .node-meta {
+            margin: 0;
+            font-size: 0.72rem;
+            color: var(--muted);
         }
 
         .card {
@@ -293,6 +337,9 @@
         @media (max-width: 920px) {
             .grid { grid-template-columns: 1fr; }
             .filter-grid { grid-template-columns: 1fr; }
+            .node-item {
+                width: 50%;
+            }
         }
     </style>
 </head>
@@ -330,44 +377,46 @@
             <h2>Adventure Path</h2>
             <p>Complete quizzes in order to unlock the next node.</p>
 
-            <div class="map-track">
+            <div class="path">
+                <svg class="map-svg" aria-hidden="true"></svg>
                 @foreach ($mapNodes as $index => $node)
                     @php
                         $quizNode = $node['quiz'];
                         $status = $node['status'];
                         $isUnlocked = $node['unlocked'];
                         $isCompleted = $status === 'completed';
-                        $nodeClass = 'node';
+                        $nodeClass = $index % 2 === 0 ? 'node-item node-left' : 'node-item node-right';
                         if (! $isUnlocked) {
                             $nodeClass .= ' node-locked';
                         }
                         if ($isCompleted) {
                             $nodeClass .= ' node-complete';
+                        } elseif ($status === 'in_progress') {
+                            $nodeClass .= ' node-progress';
                         }
                     @endphp
 
                     <article class="{{ $nodeClass }}">
-                        <div class="node-head">
-                            <span class="node-num">{{ $index + 1 }}</span>
-                            @if ($isCompleted)
-                                <span class="badge badge-completed">Done</span>
-                            @elseif ($status === 'in_progress')
-                                <span class="badge badge-progress">Current</span>
-                            @elseif (! $isUnlocked)
-                                <span class="badge badge-new">Locked</span>
-                            @else
-                                <span class="badge badge-new">Open</span>
-                            @endif
-                        </div>
+                        @if ($isUnlocked)
+                            <a class="node-bubble" href="{{ route('student.quiz.start', $quizNode) }}">
+                                <span class="node-number">{{ $index + 1 }}</span>
+                                @if ($isCompleted)
+                                    <span class="node-state">DONE</span>
+                                @elseif ($status === 'in_progress')
+                                    <span class="node-state">NOW</span>
+                                @else
+                                    <span class="node-state">GO</span>
+                                @endif
+                            </a>
+                        @else
+                            <div class="node-bubble">
+                                <span class="node-number">🔒</span>
+                                <span class="node-state">LOCK</span>
+                            </div>
+                        @endif
 
                         <p class="node-title">{{ $quizNode->title }}</p>
-                        <p class="progress-text">{{ $node['percent'] }}% complete</p>
-
-                        @if ($isUnlocked)
-                            <a class="node-link" href="{{ route('student.quiz.start', $quizNode) }}">
-                                {{ $isCompleted ? 'Play Again' : ($status === 'in_progress' ? 'Resume Node' : 'Start Node') }}
-                            </a>
-                        @endif
+                        <p class="node-meta">{{ $node['percent'] }}% complete</p>
                     </article>
                 @endforeach
             </div>
@@ -426,5 +475,46 @@
         <div style="margin-top:12px;">{{ $quizzes->links() }}</div>
     @endif
 </div>
+<script>
+    (function () {
+        function drawMapConnections() {
+            const path = document.querySelector('.path');
+            const svg = path?.querySelector('.map-svg');
+            const bubbles = path ? Array.from(path.querySelectorAll('.node-bubble')) : [];
+
+            if (!path || !svg || bubbles.length < 2) {
+                return;
+            }
+
+            const pathRect = path.getBoundingClientRect();
+            const width = Math.max(pathRect.width, 1);
+            const height = Math.max(pathRect.height, 1);
+
+            svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+            svg.innerHTML = '';
+
+            for (let i = 0; i < bubbles.length - 1; i++) {
+                const current = bubbles[i].getBoundingClientRect();
+                const next = bubbles[i + 1].getBoundingClientRect();
+
+                const x1 = current.left - pathRect.left + (current.width / 2);
+                const y1 = current.top - pathRect.top + (current.height / 2);
+                const x2 = next.left - pathRect.left + (next.width / 2);
+                const y2 = next.top - pathRect.top + (next.height / 2);
+
+                const controlX = (x1 + x2) / 2;
+                const controlY = (y1 + y2) / 2 - 18;
+
+                const pathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                pathEl.setAttribute('class', 'map-connection');
+                pathEl.setAttribute('d', `M ${x1} ${y1} Q ${controlX} ${controlY} ${x2} ${y2}`);
+                svg.appendChild(pathEl);
+            }
+        }
+
+        window.addEventListener('load', drawMapConnections);
+        window.addEventListener('resize', drawMapConnections);
+    })();
+</script>
 </body>
 </html>
