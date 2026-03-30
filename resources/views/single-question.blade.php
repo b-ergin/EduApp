@@ -191,6 +191,15 @@
             color: #1d4ed8;
         }
 
+        .back-link {
+            display: inline-block;
+            margin-bottom: 12px;
+            color: #1e3a8a;
+            font-size: 0.86rem;
+            text-decoration: none;
+            font-weight: 600;
+        }
+
 
     </style>
 </head>
@@ -202,6 +211,7 @@
 
 <div class="phone">
     <div class="card">
+        <a class="back-link" href="{{ route('student.quizzes') }}">← Back to Quiz Selection</a>
         <h1>Question</h1>
         <p class="progress-meta">Question {{ $currentIndex }} of {{ $totalQuestions }}</p>
         <div class="progress-track" aria-label="Quiz progress">
@@ -210,7 +220,11 @@
         <p class="question">{{ $question->question_text }}</p>
 
         @if ($answered && !$nextQuestion)
-            <p class="done">You finished this quiz.</p>
+            <div class="done">
+                <p class="done-title">Quiz completed</p>
+                <p class="done-text">Great work. You finished all questions in this quiz.</p>
+                <a class="next-link" href="{{ route('student.quizzes') }}" style="margin-top:10px;">Back to Quiz Selection</a>
+            </div>
         @endif
 
 

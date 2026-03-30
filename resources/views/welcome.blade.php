@@ -219,7 +219,7 @@
         </p>
 
         <div class="actions">
-            <a class="btn btn-primary" href="/test-quiz">Try Student Quiz</a>
+            <a class="btn btn-primary" href="/quizzes">Try Student Quiz</a>
             <a class="btn btn-light" href="/admin/login">Open Teacher Admin</a>
         </div>
     </section>
@@ -244,7 +244,7 @@
             <h2>Quick Links</h2>
             <ul class="list">
                 <li><a href="/admin/login">/admin/login</a> for teacher login</li>
-                <li><a href="/test-quiz">/test-quiz</a> for current quiz UI prototype</li>
+                <li><a href="/quizzes">/quizzes</a> for quiz selection and student progress</li>
                 <li><a href="/quizzes/1/questions/1">/quizzes/1/questions/1</a> for mobile-style single question</li>
             </ul>
         </div>
