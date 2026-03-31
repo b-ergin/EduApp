@@ -31,6 +31,26 @@ class QuizController extends Controller
         ]);
     }
 
+    public function start(Quiz $quiz): JsonResponse
+    {
+        $firstQuestionId = Question::where('quiz_id', $quiz->id)
+            ->orderBy('id')
+            ->value('id');
+
+        if (! $firstQuestionId) {
+            return response()->json([
+                'message' => 'This quiz has no questions yet.',
+            ], 422);
+        }
+
+        return response()->json([
+            'data' => [
+                'quiz_id' => $quiz->id,
+                'first_question_id' => (int) $firstQuestionId,
+            ],
+        ]);
+    }
+
     public function showQuestion(Quiz $quiz, Question $question): JsonResponse
     {
         if ((int) $question->quiz_id !== (int) $quiz->id) {

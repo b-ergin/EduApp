@@ -10,6 +10,7 @@ Route::prefix('v1')->group(function () {
     Route::middleware('auth:sanctum')->group(function () {
         Route::post('/logout', [AuthController::class, 'logout']);
         Route::get('/quizzes', [QuizController::class, 'index']);
+        Route::get('/quizzes/{quiz}/start', [QuizController::class, 'start']);
         Route::get('/quizzes/{quiz}/questions/{question}', [QuizController::class, 'showQuestion']);
         Route::post('/questions/{question}/answer', [QuizController::class, 'submitAnswer']);
 
