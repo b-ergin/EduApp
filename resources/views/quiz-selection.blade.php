@@ -100,7 +100,7 @@
         .grid {
             display: grid;
             grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 12px;
+            gap: 10px;
         }
 
         .map {
@@ -122,11 +122,21 @@
             color: var(--muted);
         }
 
+        .path-wrap {
+            overflow-x: auto;
+            padding-bottom: 6px;
+            -webkit-overflow-scrolling: touch;
+        }
+
         .path {
             position: relative;
-            max-width: 450px;
-            margin: 16px auto 0;
-            padding: 8px 0 4px;
+            width: max-content;
+            min-width: 100%;
+            margin: 12px 0 0;
+            padding: 12px 14px 10px;
+            display: flex;
+            gap: 14px;
+            align-items: center;
         }
 
         .map-svg {
@@ -140,71 +150,77 @@
 
         .map-connection {
             fill: none;
-            stroke: #d6dee9;
-            stroke-width: 6;
+            stroke: #cbd5e1;
+            stroke-width: 5;
             stroke-linecap: round;
             stroke-linejoin: round;
+            opacity: 0.9;
         }
 
         .node-item {
             position: relative;
-            width: 50%;
-            margin-bottom: 10px;
+            width: 92px;
+            flex: 0 0 92px;
             display: flex;
             flex-direction: column;
             align-items: center;
             z-index: 1;
         }
 
-        .node-left {
-            margin-right: auto;
+        .node-up {
+            transform: translateY(-8px);
         }
 
-        .node-right {
-            margin-left: auto;
+        .node-down {
+            transform: translateY(8px);
         }
 
         .node-bubble {
-            width: 84px;
-            height: 84px;
+            width: 68px;
+            height: 68px;
             border-radius: 999px;
-            border: 4px solid #7dd3fc;
-            background: #eff6ff;
+            border: 3px solid #60a5fa;
+            background: #dbeafe;
             color: #1e3a8a;
             display: inline-flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             font-weight: 800;
-            box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
+            box-shadow: 0 5px 10px rgba(59, 130, 246, 0.2);
             text-decoration: none;
+            transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;
+            position: relative;
         }
 
         .node-bubble:hover {
             transform: translateY(-2px);
+            box-shadow: 0 7px 12px rgba(59, 130, 246, 0.24);
         }
 
         .node-number {
-            font-size: 1.2rem;
+            font-size: 1rem;
             line-height: 1;
         }
 
         .node-state {
-            font-size: 0.65rem;
-            margin-top: 3px;
+            font-size: 0.56rem;
+            margin-top: 2px;
             letter-spacing: 0.03em;
         }
 
         .node-complete .node-bubble {
-            border-color: #86efac;
-            background: #ecfdf5;
+            border-color: #22c55e;
+            background: #dcfce7;
             color: #166534;
+            box-shadow: 0 5px 10px rgba(22, 101, 52, 0.18);
         }
 
         .node-progress .node-bubble {
-            border-color: #fcd34d;
-            background: #fffbeb;
+            border-color: #f59e0b;
+            background: #fef3c7;
             color: #92400e;
+            box-shadow: 0 5px 10px rgba(180, 83, 9, 0.18);
         }
 
         .node-locked .node-bubble {
@@ -214,49 +230,65 @@
             box-shadow: none;
             cursor: not-allowed;
             pointer-events: none;
+            filter: grayscale(0.25);
         }
 
         .node-title {
-            margin: 7px 0 2px;
-            font-size: 0.8rem;
+            margin: 6px 0 1px;
+            font-size: 0.74rem;
             font-weight: 700;
             line-height: 1.3;
             text-align: center;
-            max-width: 150px;
+            max-width: 120px;
         }
 
         .node-meta {
             margin: 0;
-            font-size: 0.72rem;
+            font-size: 0.68rem;
             color: var(--muted);
+        }
+
+        .stars {
+            margin-top: 4px;
+            letter-spacing: 0.02em;
+            line-height: 1;
+            user-select: none;
+        }
+
+        .star-on {
+            color: #f59e0b;
+        }
+
+        .star-off {
+            color: #cbd5e1;
         }
 
         .card {
             background: var(--card);
             border: 1px solid var(--border);
             border-radius: 14px;
-            padding: 14px;
+            padding: 10px 11px;
         }
 
         .title {
             margin: 0;
-            font-size: 1rem;
-            line-height: 1.35;
+            font-size: 0.95rem;
+            line-height: 1.25;
         }
 
         .meta {
-            margin: 8px 0;
+            margin: 5px 0 6px;
             color: var(--muted);
-            font-size: 0.86rem;
-            line-height: 1.45;
+            font-size: 0.79rem;
+            line-height: 1.3;
         }
 
         .badge {
             display: inline-block;
-            font-size: 0.76rem;
+            font-size: 0.7rem;
             font-weight: 700;
             border-radius: 999px;
-            padding: 5px 9px;
+            padding: 4px 8px;
             border: 1px solid transparent;
         }
 
@@ -279,9 +311,9 @@
         }
 
         .track {
-            margin-top: 10px;
+            margin-top: 7px;
             width: 100%;
-            height: 8px;
+            height: 6px;
             border-radius: 999px;
             background: #e5e7eb;
             overflow: hidden;
@@ -294,13 +326,13 @@
         }
 
         .progress-text {
-            margin: 6px 0 0;
-            font-size: 0.8rem;
+            margin: 4px 0 0;
+            font-size: 0.74rem;
             color: var(--muted);
         }
 
         .actions {
-            margin-top: 12px;
+            margin-top: 8px;
             display: flex;
             gap: 8px;
             flex-wrap: wrap;
@@ -309,8 +341,8 @@
         .action-btn {
             text-decoration: none;
             border-radius: 10px;
-            padding: 9px 12px;
-            font-size: 0.86rem;
+            padding: 7px 10px;
+            font-size: 0.8rem;
             font-weight: 700;
         }
 
@@ -335,11 +367,13 @@
         }
 
         @media (max-width: 920px) {
-            .grid { grid-template-columns: 1fr; }
+            .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
             .filter-grid { grid-template-columns: 1fr; }
-            .node-item {
-                width: 50%;
-            }
+            .path { min-width: max-content; }
+        }
+
+        @media (max-width: 620px) {
+            .grid { grid-template-columns: 1fr; }
         }
     </style>
 </head>
@@ -377,15 +411,16 @@
             <h2>Adventure Path</h2>
             <p>Complete quizzes in order to unlock the next node.</p>
 
-            <div class="path">
-                <svg class="map-svg" aria-hidden="true"></svg>
-                @foreach ($mapNodes as $index => $node)
+            <div class="path-wrap">
+                <div class="path">
+                    <svg class="map-svg" aria-hidden="true"></svg>
+                    @foreach ($mapNodes as $index => $node)
                     @php
                         $quizNode = $node['quiz'];
                         $status = $node['status'];
                         $isUnlocked = $node['unlocked'];
                         $isCompleted = $status === 'completed';
-                        $nodeClass = $index % 2 === 0 ? 'node-item node-left' : 'node-item node-right';
+                        $nodeClass = $index % 2 === 0 ? 'node-item node-up' : 'node-item node-down';
                         if (! $isUnlocked) {
                             $nodeClass .= ' node-locked';
                         }
@@ -417,8 +452,14 @@
 
                         <p class="node-title">{{ $quizNode->title }}</p>
                         <p class="node-meta">{{ $node['percent'] }}% complete</p>
+                        <div class="stars" aria-label="Stars earned">
+                            @for ($star = 1; $star <= 3; $star++)
+                                <span class="{{ $star <= $node['stars'] ? 'star-on' : 'star-off' }}">★</span>
+                            @endfor
+                        </div>
                     </article>
-                @endforeach
+                    @endforeach
+                </div>
             </div>
         </section>
     @endif
@@ -432,8 +473,11 @@
                     $progress = $progressByQuiz[$quiz->id] ?? [
                         'status' => 'not_started',
                         'answered_count' => 0,
+                        'correct_count' => 0,
                         'total_questions' => 0,
                         'percent' => 0,
+                        'score_percent' => 0,
+                        'stars' => 0,
                         'completed' => false,
                     ];
                 @endphp
@@ -441,9 +485,9 @@
                 <article class="card">
                     <h2 class="title">{{ $quiz->title }}</h2>
                     <p class="meta">
-                        Subject: {{ $quiz->subject?->name ?? 'N/A' }}<br>
-                        Level: {{ $quiz->subject?->grade?->name ?? 'N/A' }}<br>
-                        Questions: {{ $progress['total_questions'] }}
+                        {{ $quiz->subject?->name ?? 'N/A' }} •
+                        {{ $quiz->subject?->grade?->name ?? 'N/A' }} •
+                        {{ $progress['total_questions'] }} questions
                     </p>
 
                     @if ($progress['status'] === 'completed')
@@ -453,11 +497,19 @@
                     @else
                         <span class="badge badge-new">Not Started</span>
                     @endif
+                    <div class="stars" aria-label="Stars earned">
+                        @for ($star = 1; $star <= 3; $star++)
+                            <span class="{{ $star <= ($progress['stars'] ?? 0) ? 'star-on' : 'star-off' }}">★</span>
+                        @endfor
+                    </div>
 
                     <div class="track">
                         <div class="fill" style="width: {{ $progress['percent'] }}%;"></div>
                     </div>
-                    <p class="progress-text">{{ $progress['answered_count'] }} / {{ $progress['total_questions'] }} answered ({{ $progress['percent'] }}%)</p>
+                    <p class="progress-text">
+                        {{ $progress['answered_count'] }}/{{ $progress['total_questions'] }} answered ({{ $progress['percent'] }}%) •
+                        {{ $progress['correct_count'] ?? 0 }} correct ({{ $progress['score_percent'] ?? 0 }}%)
+                    </p>
 
                     <div class="actions">
                         @if ($progress['status'] === 'in_progress')

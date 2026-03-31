@@ -49,24 +49,50 @@ Route::get('/quizzes', function (Request $request) {
     $quizzes = $quizzesQuery->paginate(9)->withQueryString();
 
     $progressByQuiz = [];
+    $calculateStars = function (int $scorePercent, bool $completed): int {
+        if (! $completed) {
+            return 0;
+        }
+
+        if ($scorePercent >= 90) {
+            return 3;
+        }
+        if ($scorePercent >= 70) {
+            return 2;
+        }
+        if ($scorePercent >= 50) {
+            return 1;
+        }
+
+        return 0;
+    };
+
     foreach ($quizzes as $quiz) {
         $quizProgress = $sessionProgress[$quiz->id] ?? [];
-        $answered = collect($quizProgress['answered_question_ids'] ?? [])
+        $legacyAnsweredIds = collect($quizProgress['answered_question_ids'] ?? [])
             ->map(fn ($id) => (int) $id)
             ->unique()
-            ->values()
-            ->all();
+            ->values();
+        $questionResults = collect($quizProgress['question_results'] ?? [])
+            ->mapWithKeys(fn ($isCorrect, $questionId) => [(int) $questionId => (bool) $isCorrect]);
 
-        $answeredCount = min(count($answered), (int) $quiz->questions_count);
+        $answeredCountSource = $questionResults->isNotEmpty() ? $questionResults->keys()->values() : $legacyAnsweredIds;
+        $answeredCount = min($answeredCountSource->count(), (int) $quiz->questions_count);
+        $correctCount = $questionResults->filter()->count();
         $completed = (bool) ($quizProgress['completed'] ?? false);
         $percent = $quiz->questions_count > 0 ? (int) round(($answeredCount / $quiz->questions_count) * 100) : 0;
+        $scorePercent = $quiz->questions_count > 0 ? (int) round(($correctCount / $quiz->questions_count) * 100) : 0;
         $status = $completed ? 'completed' : ($answeredCount > 0 ? 'in_progress' : 'not_started');
+        $stars = $calculateStars($scorePercent, $completed);
 
         $progressByQuiz[$quiz->id] = [
             'answered_count' => $answeredCount,
+            'correct_count' => $correctCount,
             'total_questions' => (int) $quiz->questions_count,
             'completed' => $completed,
             'percent' => $percent,
+            'score_percent' => $scorePercent,
+            'stars' => $stars,
             'status' => $status,
             'current_question_id' => $quizProgress['current_question_id'] ?? null,
         ];
@@ -84,6 +110,7 @@ Route::get('/quizzes', function (Request $request) {
             'status' => $status,
             'unlocked' => $isUnlocked,
             'percent' => $progress['percent'],
+            'stars' => $progress['stars'],
         ];
 
         $previousCompleted = $progress['completed'];
@@ -109,7 +136,12 @@ Route::get('/quizzes/{quiz}/start', function (Request $request, Quiz $quiz) {
         $previousQuizId = $currentIndex !== false && $currentIndex > 0 ? $orderedQuizIds[$currentIndex - 1] : null;
         $currentStatus = $quizProgress['completed'] ?? false
             ? 'completed'
-            : (count($quizProgress['answered_question_ids'] ?? []) > 0 ? 'in_progress' : 'not_started');
+            : (
+                count($quizProgress['question_results'] ?? []) > 0
+                || count($quizProgress['answered_question_ids'] ?? []) > 0
+                ? 'in_progress'
+                : 'not_started'
+            );
 
         $previousCompleted = $previousQuizId
             ? (bool) (($progress[$previousQuizId]['completed'] ?? false))
@@ -124,7 +156,7 @@ Route::get('/quizzes/{quiz}/start', function (Request $request, Quiz $quiz) {
 
     if ($request->boolean('restart')) {
         $quizProgress = [
-            'answered_question_ids' => [],
+            'question_results' => [],
             'current_question_id' => null,
             'completed' => false,
         ];
@@ -145,6 +177,7 @@ Route::get('/quizzes/{quiz}/start', function (Request $request, Quiz $quiz) {
     $targetQuestionId = $currentQuestionBelongsToQuiz ? $currentQuestionId : $firstQuestionId;
 
     $progress[$quiz->id] = [
+        'question_results' => $quizProgress['question_results'] ?? [],
         'answered_question_ids' => $quizProgress['answered_question_ids'] ?? [],
         'current_question_id' => $targetQuestionId,
         'completed' => (bool) ($quizProgress['completed'] ?? false),
@@ -208,15 +241,16 @@ Route::post('/quizzes/{quiz}/questions/{question}', function (Request $request, 
 
     $progress = $request->session()->get('student_progress', []);
     $quizProgress = $progress[$quiz->id] ?? [
-        'answered_question_ids' => [],
+        'question_results' => [],
         'current_question_id' => $question->id,
         'completed' => false,
     ];
 
-    $quizProgress['answered_question_ids'] = collect($quizProgress['answered_question_ids'] ?? [])
-        ->push((int) $question->id)
+    $questionResults = $quizProgress['question_results'] ?? [];
+    $questionResults[(int) $question->id] = (bool) $choice->is_correct;
+    $quizProgress['question_results'] = $questionResults;
+    $quizProgress['answered_question_ids'] = collect(array_keys($questionResults))
         ->map(fn ($id) => (int) $id)
-        ->unique()
         ->values()
         ->all();
 

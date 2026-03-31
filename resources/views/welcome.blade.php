@@ -3,17 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EduApp Home</title>
+    <title>EduApp</title>
     <style>
         :root {
-            --bg: #f4f7fb;
-            --card: #ffffff;
-            --text: #111827;
-            --muted: #6b7280;
-            --primary: #0f766e;
-            --primary-2: #14b8a6;
-            --accent: #1d4ed8;
-            --border: #e5e7eb;
+            --bg-a: #e0ecff;
+            --bg-b: #d2f5ee;
+            --ink: #0f172a;
+            --card-a: #0f172a;
+            --card-b: #22324e;
+            --student-a: #0f766e;
+            --student-b: #14b8a6;
+            --teacher-a: #1d4ed8;
+            --teacher-b: #60a5fa;
         }
 
         * { box-sizing: border-box; }
@@ -22,243 +23,141 @@
             margin: 0;
             min-height: 100vh;
             font-family: "Poppins", "Segoe UI", sans-serif;
-            color: var(--text);
+            color: var(--ink);
             background:
-                radial-gradient(circle at 20% 0%, #dbeafe 0%, rgba(219, 234, 254, 0) 45%),
-                radial-gradient(circle at 85% 15%, #ccfbf1 0%, rgba(204, 251, 241, 0) 45%),
-                var(--bg);
+                radial-gradient(1100px 500px at 12% -8%, #c7ddff 0%, rgba(199, 221, 255, 0) 70%),
+                radial-gradient(900px 450px at 88% 8%, #baf3e8 0%, rgba(186, 243, 232, 0) 70%),
+                linear-gradient(110deg, var(--bg-a), var(--bg-b));
+            display: grid;
+            place-items: center;
+            padding: 20px;
         }
 
-        .wrap {
-            max-width: 1050px;
-            margin: 0 auto;
-            padding: 28px 16px 40px;
-        }
-
-        .topbar {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-        }
-
-        .logo {
-            font-size: 1.2rem;
-            font-weight: 800;
-            letter-spacing: 0.02em;
-        }
-
-        .pill {
-            display: inline-block;
-            font-size: 0.78rem;
-            color: #0c4a6e;
-            border: 1px solid #bae6fd;
-            background: #f0f9ff;
-            border-radius: 999px;
-            padding: 5px 10px;
-        }
-
-        .hero {
-            background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #334155 100%);
-            border-radius: 22px;
-            padding: 26px;
-            color: #f8fafc;
-            border: 1px solid rgba(255, 255, 255, 0.14);
-            box-shadow: 0 22px 45px rgba(15, 23, 42, 0.26);
-            overflow: hidden;
+        .scene {
+            width: 100%;
+            max-width: 940px;
             position: relative;
         }
 
-        .hero::after {
-            content: "";
-            position: absolute;
-            right: -65px;
-            top: -65px;
-            width: 220px;
-            height: 220px;
-            border-radius: 50%;
-            background: radial-gradient(circle, rgba(20, 184, 166, 0.55), rgba(20, 184, 166, 0));
-        }
-
-        .hero h1 {
-            margin: 0;
-            font-size: clamp(1.55rem, 3.1vw, 2.35rem);
-            line-height: 1.15;
-            max-width: 700px;
-        }
-
-        .hero p {
-            margin: 12px 0 0;
-            color: #cbd5e1;
-            max-width: 690px;
-            line-height: 1.45;
-        }
-
-        .actions {
-            margin-top: 20px;
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
-
-        .btn {
-            border: 0;
-            border-radius: 11px;
-            padding: 10px 14px;
-            text-decoration: none;
-            font-size: 0.9rem;
-            font-weight: 700;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            transition: transform 0.14s ease;
-        }
-
-        .btn:hover {
-            transform: translateY(-1px);
-        }
-
-        .btn-primary {
-            color: #fff;
-            background: linear-gradient(135deg, var(--primary), var(--primary-2));
-        }
-
-        .btn-light {
-            color: #0f172a;
-            background: #f8fafc;
-        }
-
-        .grid {
-            margin-top: 18px;
-            display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 12px;
-        }
-
-        .card {
-            background: var(--card);
-            border: 1px solid var(--border);
-            border-radius: 14px;
-            padding: 14px;
-            box-shadow: 0 8px 18px rgba(15, 23, 42, 0.05);
-        }
-
-        .card h3 {
-            margin: 0 0 6px;
-            font-size: 1rem;
-        }
-
-        .card p {
-            margin: 0;
-            color: var(--muted);
-            font-size: 0.88rem;
-            line-height: 1.45;
-        }
-
-        .stack {
-            margin-top: 16px;
-            display: grid;
-            gap: 10px;
+        .brand {
+            font-size: 1.35rem;
+            font-weight: 800;
+            letter-spacing: 0.02em;
+            margin: 0 0 10px;
+            color: #0b1220;
         }
 
         .panel {
-            background: var(--card);
-            border: 1px solid var(--border);
-            border-radius: 14px;
-            padding: 15px;
+            position: relative;
+            overflow: hidden;
+            border-radius: 28px;
+            background: linear-gradient(135deg, var(--card-a), var(--card-b));
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            box-shadow:
+                0 24px 60px rgba(15, 23, 42, 0.24),
+                inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            padding: clamp(24px, 4.2vw, 40px);
         }
 
-        .panel h2 {
-            margin: 0 0 8px;
+        .panel::before {
+            content: "";
+            position: absolute;
+            left: -120px;
+            bottom: -120px;
+            width: 260px;
+            height: 260px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(20, 184, 166, 0.25), rgba(20, 184, 166, 0));
+        }
+
+        .panel::after {
+            content: "";
+            position: absolute;
+            right: -80px;
+            top: -70px;
+            width: 250px;
+            height: 250px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(56, 189, 248, 0.32), rgba(56, 189, 248, 0));
+        }
+
+        .portals {
+            position: relative;
+            z-index: 1;
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 14px;
+            max-width: 620px;
+            margin-inline: auto;
+        }
+
+        .portal {
+            text-decoration: none;
+            border-radius: 16px;
+            min-height: 64px;
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             font-size: 1.08rem;
+            font-weight: 700;
+            color: #ffffff;
+            letter-spacing: 0.01em;
+            transition: transform 0.16s ease, box-shadow 0.16s ease, filter 0.16s ease;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            backdrop-filter: blur(2px);
         }
 
-        .list {
-            margin: 0;
-            padding-left: 18px;
-            color: var(--muted);
-            font-size: 0.9rem;
-            line-height: 1.55;
+        .portal:hover {
+            transform: translateY(-2px) scale(1.01);
+            filter: brightness(1.04);
         }
 
-        .endpoint {
-            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-            font-size: 0.83rem;
-            background: #f8fafc;
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 8px;
-            margin-bottom: 6px;
+        .portal:active {
+            transform: translateY(0) scale(0.995);
         }
 
-        .footer {
-            margin-top: 18px;
-            text-align: center;
-            color: var(--muted);
-            font-size: 0.84rem;
+        .student {
+            background: linear-gradient(135deg, var(--student-a), var(--student-b));
+            box-shadow: 0 12px 26px rgba(20, 184, 166, 0.3);
         }
 
-        @media (max-width: 900px) {
-            .grid { grid-template-columns: 1fr; }
+        .teacher {
+            background: linear-gradient(135deg, var(--teacher-a), var(--teacher-b));
+            box-shadow: 0 12px 26px rgba(59, 130, 246, 0.3);
+        }
+
+        @media (max-width: 680px) {
+            .scene {
+                max-width: 520px;
+            }
+
+            .panel {
+                border-radius: 24px;
+            }
+
+            .portals {
+                grid-template-columns: 1fr;
+                max-width: none;
+            }
+
+            .portal {
+                min-height: 58px;
+                font-size: 1rem;
+            }
         }
     </style>
 </head>
 <body>
-<div class="wrap">
-    <div class="topbar">
-        <div class="logo">EduApp</div>
-        <span class="pill">Laravel + API Ready</span>
-    </div>
+<div class="scene">
+    <p class="brand">EduApp</p>
 
-    <section class="hero">
-        <h1>Build Better Classroom Quizzes with Fast Teacher Workflows</h1>
-        <p>
-            Manage grades, subjects, quizzes, questions, and choices from the admin panel,
-            while powering a mobile-ready API for future Flutter student experiences.
-        </p>
-
-        <div class="actions">
-            <a class="btn btn-primary" href="/quizzes">Try Student Quiz</a>
-            <a class="btn btn-light" href="/admin/login">Open Teacher Admin</a>
+    <section class="panel">
+        <div class="portals">
+            <a class="portal student" href="/quizzes">Student Portal</a>
+            <a class="portal teacher" href="/admin/login">Teacher Portal</a>
         </div>
     </section>
-
-    <section class="grid">
-        <article class="card">
-            <h3>Teacher Admin Panel</h3>
-            <p>Create and organize quiz content quickly with secure admin-only CRUD pages.</p>
-        </article>
-        <article class="card">
-            <h3>Student Quiz Flow</h3>
-            <p>Single-question experience with progress bar, answer feedback, and next-question flow.</p>
-        </article>
-        <article class="card">
-            <h3>Mobile API v1</h3>
-            <p>Sanctum-protected JSON endpoints ready for Flutter integration and scaling.</p>
-        </article>
-    </section>
-
-    <section class="stack">
-        <div class="panel">
-            <h2>Quick Links</h2>
-            <ul class="list">
-                <li><a href="/admin/login">/admin/login</a> for teacher login</li>
-                <li><a href="/quizzes">/quizzes</a> for quiz selection and student progress</li>
-                <li><a href="/quizzes/1/questions/1">/quizzes/1/questions/1</a> for mobile-style single question</li>
-            </ul>
-        </div>
-
-        <div class="panel">
-            <h2>API Endpoints (v1)</h2>
-            <div class="endpoint">POST /api/v1/login</div>
-            <div class="endpoint">GET /api/v1/quizzes</div>
-            <div class="endpoint">GET /api/v1/quizzes/{quiz}/questions/{question}</div>
-            <div class="endpoint">POST /api/v1/questions/{question}/answer</div>
-        </div>
-    </section>
-
-    <p class="footer">EduApp classroom foundation is running. Next step: gamification and Flutter UI.</p>
 </div>
 </body>
 </html>

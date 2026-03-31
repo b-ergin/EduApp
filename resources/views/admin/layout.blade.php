@@ -191,7 +191,6 @@
             <a href="{{ route('admin.subjects.index') }}">Subjects</a>
             <a href="{{ route('admin.quizzes.index') }}">Quizzes</a>
             <a href="{{ route('admin.questions.index') }}">Questions</a>
-            <a href="{{ route('admin.choices.index') }}">Choices</a>
         </nav>
     </aside>
 

@@ -77,6 +77,21 @@
             line-height: 1.4;
         }
 
+        .question-image-wrap {
+            margin: 0 0 16px;
+            border-radius: 14px;
+            border: 1px solid var(--border);
+            background: #f8fafc;
+            overflow: hidden;
+        }
+
+        .question-image {
+            display: block;
+            width: 100%;
+            max-height: 220px;
+            object-fit: cover;
+        }
+
         .result {
             margin: 0 0 14px;
             font-weight: 600;
@@ -211,6 +226,22 @@
 
 <div class="phone">
     <div class="card">
+        @php
+            $rawImagePath = trim((string) ($question->image_path ?? ''));
+            $imageUrl = null;
+
+            if ($rawImagePath !== '') {
+                if (str_starts_with($rawImagePath, 'http://') || str_starts_with($rawImagePath, 'https://')) {
+                    $imageUrl = $rawImagePath;
+                } elseif (str_starts_with($rawImagePath, public_path())) {
+                    $relativePublicPath = ltrim(str_replace(public_path(), '', $rawImagePath), '/');
+                    $imageUrl = asset($relativePublicPath);
+                } else {
+                    $imageUrl = asset(ltrim($rawImagePath, '/'));
+                }
+            }
+        @endphp
+
         <a class="back-link" href="{{ route('student.quizzes') }}">← Back to Quiz Selection</a>
         <h1>Question</h1>
         <p class="progress-meta">Question {{ $currentIndex }} of {{ $totalQuestions }}</p>
@@ -218,6 +249,17 @@
             <div class="progress-fill" style="width: {{ $progressPercent }}%;"></div>
         </div>
         <p class="question">{{ $question->question_text }}</p>
+        @if ($imageUrl)
+            <div class="question-image-wrap">
+                <img
+                    class="question-image"
+                    src="{{ $imageUrl }}"
+                    alt="Question image"
+                    loading="lazy"
+                    onerror="this.closest('.question-image-wrap').style.display='none';"
+                >
+            </div>
+        @endif
 
         @if ($answered && !$nextQuestion)
             <div class="done">

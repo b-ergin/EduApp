@@ -22,6 +22,9 @@ class QuestionController extends Controller
     {
         return view('admin.questions.create', [
             'quizzes' => Quiz::with('subject.grade')->orderBy('title')->get(),
+            'question' => new Question(),
+            'choices' => array_fill(0, 4, ''),
+            'correctChoiceIndex' => 0,
         ]);
     }
 
@@ -31,18 +34,46 @@ class QuestionController extends Controller
             'question_text' => ['required', 'string'],
             'quiz_id' => ['required', 'integer', 'exists:quizzes,id'],
             'image_path' => ['nullable', 'string', 'max:255'],
+            'choices' => ['required', 'array', 'size:4'],
+            'choices.*' => ['required', 'string', 'max:255'],
+            'correct_choice' => ['required', 'integer', 'between:0,3'],
         ]);
 
-        Question::create($validated);
+        $question = Question::create([
+            'question_text' => $validated['question_text'],
+            'quiz_id' => $validated['quiz_id'],
+            'image_path' => $validated['image_path'] ?? null,
+        ]);
 
-        return redirect()->route('admin.questions.index')->with('status', 'Question created successfully.');
+        foreach ($validated['choices'] as $index => $choiceText) {
+            $question->choices()->create([
+                'choice_text' => $choiceText,
+                'is_correct' => (int) $validated['correct_choice'] === (int) $index,
+            ]);
+        }
+
+        return redirect()->route('admin.questions.index')->with('status', 'Question and choices created successfully.');
     }
 
     public function edit(Question $question): View
     {
+        $choices = $question->choices()->orderBy('id')->pluck('choice_text')->values()->all();
+        $choices = array_pad($choices, 4, '');
+
+        $correctChoiceId = $question->choices()->where('is_correct', true)->value('id');
+        $correctChoiceIndex = 0;
+        foreach ($question->choices()->orderBy('id')->get() as $index => $choice) {
+            if ((int) $choice->id === (int) $correctChoiceId) {
+                $correctChoiceIndex = $index;
+                break;
+            }
+        }
+
         return view('admin.questions.edit', [
             'question' => $question,
             'quizzes' => Quiz::with('subject.grade')->orderBy('title')->get(),
+            'choices' => $choices,
+            'correctChoiceIndex' => $correctChoiceIndex,
         ]);
     }
 
@@ -52,11 +83,27 @@ class QuestionController extends Controller
             'question_text' => ['required', 'string'],
             'quiz_id' => ['required', 'integer', 'exists:quizzes,id'],
             'image_path' => ['nullable', 'string', 'max:255'],
+            'choices' => ['required', 'array', 'size:4'],
+            'choices.*' => ['required', 'string', 'max:255'],
+            'correct_choice' => ['required', 'integer', 'between:0,3'],
         ]);
 
-        $question->update($validated);
+        $question->update([
+            'question_text' => $validated['question_text'],
+            'quiz_id' => $validated['quiz_id'],
+            'image_path' => $validated['image_path'] ?? null,
+        ]);
 
-        return redirect()->route('admin.questions.index')->with('status', 'Question updated successfully.');
+        $question->choices()->delete();
+
+        foreach ($validated['choices'] as $index => $choiceText) {
+            $question->choices()->create([
+                'choice_text' => $choiceText,
+                'is_correct' => (int) $validated['correct_choice'] === (int) $index,
+            ]);
+        }
+
+        return redirect()->route('admin.questions.index')->with('status', 'Question and choices updated successfully.');
     }
 
     public function destroy(Question $question): RedirectResponse
