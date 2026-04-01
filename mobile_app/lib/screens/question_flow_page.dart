@@ -138,6 +138,10 @@ class _QuestionFlowPageState extends State<QuestionFlowPage> {
 
   Widget _buildQuestionCard() {
     final q = question!;
+    final resolvedImageUrl =
+        (q.imagePath ?? '').trim().isNotEmpty
+            ? _resolveImageUrl(q.imagePath!)
+            : null;
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 430),
@@ -187,12 +191,12 @@ class _QuestionFlowPageState extends State<QuestionFlowPage> {
                     height: 1.3,
                   ),
                 ),
-                if ((q.imagePath ?? '').trim().isNotEmpty) ...[
+                if (resolvedImageUrl != null) ...[
                   const SizedBox(height: 10),
                   ClipRRect(
                     borderRadius: BorderRadius.circular(12),
                     child: Image.network(
-                      _resolveImageUrl(q.imagePath!),
+                      resolvedImageUrl,
                       height: 180,
                       width: double.infinity,
                       fit: BoxFit.cover,
@@ -317,11 +321,20 @@ class _QuestionFlowPageState extends State<QuestionFlowPage> {
     );
   }
 
-  String _resolveImageUrl(String raw) {
+  String? _resolveImageUrl(String raw) {
     final trimmed = raw.trim();
+    if (trimmed.isEmpty) {
+      return null;
+    }
+
     if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
       return trimmed;
     }
+
+    if (trimmed.startsWith('/home/') || trimmed.contains(':\\')) {
+      return null;
+    }
+
     if (trimmed.startsWith('/')) {
       return '${widget.apiService.baseUrl}$trimmed';
     }

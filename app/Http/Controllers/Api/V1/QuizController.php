@@ -60,6 +60,12 @@ class QuizController extends Controller
         }
 
         $question->load('choices');
+        $resolvedImagePath = $this->resolveImagePath($question->image_path);
+
+        if ($resolvedImagePath !== $question->image_path) {
+            $question->image_path = $resolvedImagePath;
+            $question->save();
+        }
 
         $totalQuestions = Question::where('quiz_id', $quiz->id)->count();
         $currentIndex = Question::where('quiz_id', $quiz->id)
@@ -75,7 +81,7 @@ class QuizController extends Controller
                 'question' => [
                     'id' => $question->id,
                     'question_text' => $question->question_text,
-                    'image_path' => $question->image_path,
+                    'image_path' => $resolvedImagePath,
                     'choices' => $question->choices->map(fn (Choice $choice) => [
                         'id' => $choice->id,
                         'choice_text' => $choice->choice_text,
@@ -120,5 +126,42 @@ class QuizController extends Controller
                 'finished' => $nextQuestion ? false : true,
             ],
         ]);
+    }
+
+    private function resolveImagePath(?string $rawPath): ?string
+    {
+        $path = trim((string) $rawPath);
+        if ($path === '') {
+            return null;
+        }
+
+        if (preg_match('/^https?:\/\//i', $path)) {
+            return $path;
+        }
+
+        if (str_starts_with($path, '/question-images/')) {
+            return $path;
+        }
+
+        if (str_starts_with($path, 'question-images/')) {
+            return '/'.$path;
+        }
+
+        if (file_exists($path) && is_file($path)) {
+            $destinationDir = public_path('question-images');
+            if (! is_dir($destinationDir)) {
+                mkdir($destinationDir, 0755, true);
+            }
+
+            $extension = pathinfo($path, PATHINFO_EXTENSION) ?: 'jpg';
+            $filename = uniqid('qimg_', true).'.'.$extension;
+            $destination = $destinationDir.DIRECTORY_SEPARATOR.$filename;
+
+            if (@copy($path, $destination)) {
+                return '/question-images/'.$filename;
+            }
+        }
+
+        return str_starts_with($path, '/') ? $path : '/'.$path;
     }
 }

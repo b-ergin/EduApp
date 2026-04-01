@@ -82,7 +82,7 @@ class QuestionController extends Controller
         $question = Question::create([
             'question_text' => $validated['question_text'],
             'quiz_id' => $validated['quiz_id'],
-            'image_path' => $validated['image_path'] ?? null,
+            'image_path' => $this->normalizeImagePath($validated['image_path'] ?? null),
         ]);
 
         foreach ($validated['choices'] as $index => $choiceText) {
@@ -138,7 +138,7 @@ class QuestionController extends Controller
         $question->update([
             'question_text' => $validated['question_text'],
             'quiz_id' => $validated['quiz_id'],
-            'image_path' => $validated['image_path'] ?? null,
+            'image_path' => $this->normalizeImagePath($validated['image_path'] ?? null),
         ]);
 
         $question->choices()->delete();
@@ -162,5 +162,42 @@ class QuestionController extends Controller
         $question->delete();
 
         return redirect()->route('admin.questions.index', ['quiz_id' => $returnQuizId])->with('status', 'Question deleted. Related choices were removed by cascade rules.');
+    }
+
+    private function normalizeImagePath(?string $rawPath): ?string
+    {
+        $path = trim((string) $rawPath);
+        if ($path === '') {
+            return null;
+        }
+
+        if (preg_match('/^https?:\/\//i', $path)) {
+            return $path;
+        }
+
+        if (str_starts_with($path, '/question-images/')) {
+            return $path;
+        }
+
+        if (str_starts_with($path, 'question-images/')) {
+            return '/'.$path;
+        }
+
+        if (file_exists($path) && is_file($path)) {
+            $destinationDir = public_path('question-images');
+            if (! is_dir($destinationDir)) {
+                mkdir($destinationDir, 0755, true);
+            }
+
+            $extension = pathinfo($path, PATHINFO_EXTENSION) ?: 'jpg';
+            $filename = uniqid('qimg_', true).'.'.$extension;
+            $destination = $destinationDir.DIRECTORY_SEPARATOR.$filename;
+
+            if (@copy($path, $destination)) {
+                return '/question-images/'.$filename;
+            }
+        }
+
+        return str_starts_with($path, '/') ? $path : '/'.$path;
     }
 }
