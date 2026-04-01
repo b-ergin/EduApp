@@ -176,6 +176,9 @@ class _MapNodeWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final effectiveStatus = unlocked ? status : 'locked';
+    final visibleStars = unlocked ? stars : 0;
+
     Color bg = const Color(0xFFDBEAFE);
     Color border = const Color(0xFF60A5FA);
     Color text = const Color(0xFF1E3A8A);
@@ -184,11 +187,11 @@ class _MapNodeWidget extends StatelessWidget {
       bg = const Color(0xFFF3F4F6);
       border = const Color(0xFFD1D5DB);
       text = const Color(0xFF6B7280);
-    } else if (status == 'completed') {
+    } else if (effectiveStatus == 'completed') {
       bg = const Color(0xFFDCFCE7);
       border = const Color(0xFF22C55E);
       text = const Color(0xFF166534);
-    } else if (status == 'in_progress') {
+    } else if (effectiveStatus == 'in_progress') {
       bg = const Color(0xFFFEF3C7);
       border = const Color(0xFFF59E0B);
       text = const Color(0xFF92400E);
@@ -197,11 +200,14 @@ class _MapNodeWidget extends StatelessWidget {
     final labelTop = topOffset + 72;
     final starsTop = labelTop + 18;
     final segmentCount = _segmentCountForQuiz();
-    final progressSegments = _segmentsForProgress(segmentCount);
+    final progressSegments = _segmentsForProgress(
+      segmentCount,
+      effectiveStatus,
+    );
     final ringColor =
-        status == 'completed'
+        effectiveStatus == 'completed'
             ? const Color(0xFF22C55E)
-            : status == 'in_progress'
+            : effectiveStatus == 'in_progress'
             ? const Color(0xFF38BDF8)
             : const Color(0xFFCBD5E1);
 
@@ -244,7 +250,7 @@ class _MapNodeWidget extends StatelessWidget {
                           border: Border.all(color: border, width: 3),
                         ),
                         alignment: Alignment.center,
-                        child: _nodeInnerLabel(text),
+                        child: _nodeInnerLabel(text, effectiveStatus),
                       ),
                     ],
                   ),
@@ -267,14 +273,14 @@ class _MapNodeWidget extends StatelessWidget {
                 ),
               ),
             ),
-            Positioned(top: starsTop, child: StarRow(stars: stars)),
+            Positioned(top: starsTop, child: StarRow(stars: visibleStars)),
           ],
         ),
       ),
     );
   }
 
-  Widget _nodeInnerLabel(Color textColor) {
+  Widget _nodeInnerLabel(Color textColor, String effectiveStatus) {
     if (!unlocked) {
       return Text(
         '🔒',
@@ -286,7 +292,7 @@ class _MapNodeWidget extends StatelessWidget {
       );
     }
 
-    if (status == 'completed' && totalQuestions > 0) {
+    if (effectiveStatus == 'completed' && totalQuestions > 0) {
       return Text(
         '$correctCount/$totalQuestions',
         style: TextStyle(
@@ -297,7 +303,7 @@ class _MapNodeWidget extends StatelessWidget {
       );
     }
 
-    if (status == 'in_progress' || status == 'not_started') {
+    if (effectiveStatus == 'in_progress' || effectiveStatus == 'not_started') {
       return Text(
         '$number',
         style: TextStyle(
@@ -316,9 +322,11 @@ class _MapNodeWidget extends StatelessWidget {
     return totalQuestions < 4 ? totalQuestions : 4;
   }
 
-  int _segmentsForProgress(int segmentCount) {
-    if (status == 'completed') return segmentCount;
-    if (status != 'in_progress' || totalQuestions <= 0 || answeredCount <= 0) {
+  int _segmentsForProgress(int segmentCount, String effectiveStatus) {
+    if (effectiveStatus == 'completed') return segmentCount;
+    if (effectiveStatus != 'in_progress' ||
+        totalQuestions <= 0 ||
+        answeredCount <= 0) {
       return 0;
     }
 

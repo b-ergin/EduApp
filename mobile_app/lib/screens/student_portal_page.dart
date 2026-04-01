@@ -158,21 +158,20 @@ class _StudentPortalPageState extends State<StudentPortalPage> {
   bool isQuizUnlocked(QuizItem quiz, List<QuizItem> orderedQuizzes) {
     final index = orderedQuizzes.indexWhere((item) => item.id == quiz.id);
     if (index <= 0) return true;
-    final previousQuiz = orderedQuizzes[index - 1];
-    return progressByQuiz[previousQuiz.id]?.completed ?? false;
+
+    // Strict chain unlock: every prior node in this level path must be
+    // completed at least once.
+    for (int i = 0; i < index; i++) {
+      final priorQuiz = orderedQuizzes[i];
+      final done = progressByQuiz[priorQuiz.id]?.everCompleted ?? false;
+      if (!done) return false;
+    }
+    return true;
   }
 
   Future<void> startQuiz(QuizItem quiz) async {
     final state = progressByQuiz[quiz.id];
     if (state == null || token == null) return;
-
-    // Completed quizzes should restart from a clean state (retake behavior).
-    if (state.completed) {
-      state.answeredQuestionIds.clear();
-      state.correctQuestionIds.clear();
-      state.currentQuestionId = null;
-      state.completed = false;
-    }
 
     int targetQuestionId = state.currentQuestionId ?? 0;
     if (targetQuestionId == 0) {
@@ -187,6 +186,11 @@ class _StudentPortalPageState extends State<StudentPortalPage> {
           context,
         ).showSnackBar(SnackBar(content: Text('Start error: $e')));
         return;
+      }
+
+      // Retakes start as fresh attempts, but keep historical completion/unlock.
+      if (state.everCompleted) {
+        state.beginRetake(firstQuestionId: targetQuestionId);
       }
     }
 

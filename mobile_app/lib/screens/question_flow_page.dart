@@ -64,7 +64,6 @@ class _QuestionFlowPageState extends State<QuestionFlowPage> {
         questionId: questionId,
       );
       widget.state.currentQuestionId = payload.questionId;
-      widget.state.completed = false;
 
       setState(() {
         question = payload;
@@ -102,7 +101,9 @@ class _QuestionFlowPageState extends State<QuestionFlowPage> {
       widget.state.correctQuestionIds.add(questionId);
     }
     widget.state.currentQuestionId = payload.nextQuestionId;
-    widget.state.completed = payload.finished;
+    if (payload.finished) {
+      widget.state.markCompleted();
+    }
     widget.onProgressChanged();
 
     setState(() {

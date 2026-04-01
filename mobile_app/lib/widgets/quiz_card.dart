@@ -20,9 +20,16 @@ class QuizCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final status = progress.status;
+    final status = unlocked ? progress.status : 'locked';
     final badge =
-        status == 'completed'
+        status == 'locked'
+            ? const StatusBadge(
+              label: 'Locked',
+              bg: Color(0xFFF3F4F6),
+              border: Color(0xFFD1D5DB),
+              text: Color(0xFF6B7280),
+            )
+            : status == 'completed'
             ? const StatusBadge(
               label: 'Completed',
               bg: Color(0xFFDCFCE7),
@@ -73,13 +80,16 @@ class QuizCard extends StatelessWidget {
               const SizedBox(height: 8),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [badge, StarRow(stars: progress.stars)],
+                children: [
+                  badge,
+                  StarRow(stars: unlocked ? progress.stars : 0),
+                ],
               ),
               const SizedBox(height: 8),
               ClipRRect(
                 borderRadius: BorderRadius.circular(999),
                 child: LinearProgressIndicator(
-                  value: progress.percent / 100,
+                  value: unlocked ? (progress.percent / 100) : 0,
                   minHeight: 8,
                   backgroundColor: const Color(0xFFE5E7EB),
                   color: const Color(0xFF14B8A6),
@@ -87,7 +97,9 @@ class QuizCard extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               Text(
-                '${progress.answeredCount}/${quiz.questionCount} answered (${progress.percent}%) • ${progress.correctCount} correct (${progress.scorePercent}%)',
+                unlocked
+                    ? '${progress.answeredCount}/${quiz.questionCount} answered (${progress.percent}%) • ${progress.correctCount} correct (${progress.scorePercent}%)'
+                    : 'Locked until previous quizzes are completed.',
                 style: const TextStyle(color: Color(0xFF6B7280), fontSize: 12),
               ),
               const SizedBox(height: 8),
