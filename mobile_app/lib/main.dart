@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   runApp(const EduAppMobile());
@@ -141,6 +142,34 @@ class QuizProgressState {
     if (answeredQuestionIds.isNotEmpty) return 'in_progress';
     return 'not_started';
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'answered_question_ids': answeredQuestionIds.toList(),
+      'correct_question_ids': correctQuestionIds.toList(),
+      'current_question_id': currentQuestionId,
+      'completed': completed,
+    };
+  }
+
+  static QuizProgressState fromJson(
+    int totalQuestions,
+    Map<String, dynamic> json,
+  ) {
+    final state = QuizProgressState(totalQuestions: totalQuestions);
+
+    final answered = (json['answered_question_ids'] as List? ?? [])
+        .map((id) => (id as num).toInt());
+    final correct = (json['correct_question_ids'] as List? ?? [])
+        .map((id) => (id as num).toInt());
+
+    state.answeredQuestionIds.addAll(answered);
+    state.correctQuestionIds.addAll(correct);
+    state.currentQuestionId = (json['current_question_id'] as num?)?.toInt();
+    state.completed = (json['completed'] as bool?) ?? false;
+
+    return state;
+  }
 }
 
 class StudentPortalPage extends StatefulWidget {
@@ -152,6 +181,7 @@ class StudentPortalPage extends StatefulWidget {
 
 class _StudentPortalPageState extends State<StudentPortalPage> {
   static const String baseUrl = 'http://127.0.0.1:8000';
+  static const String progressStorageKey = 'eduapp_student_progress_v1';
   final TextEditingController searchController = TextEditingController();
 
   String? token;
@@ -171,6 +201,8 @@ class _StudentPortalPageState extends State<StudentPortalPage> {
   Future<void> bootstrap() async {
     await login();
     await loadQuizzes();
+    await _loadProgressFromLocal();
+    setState(() {});
   }
 
   Future<void> login() async {
@@ -254,6 +286,41 @@ class _StudentPortalPageState extends State<StudentPortalPage> {
     }
   }
 
+  Future<void> _loadProgressFromLocal() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(progressStorageKey);
+      if (raw == null || raw.isEmpty) return;
+
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map<String, dynamic>) return;
+
+      for (final quiz in quizzes) {
+        final quizRaw = decoded[quiz.id.toString()];
+        if (quizRaw is! Map<String, dynamic>) continue;
+        progressByQuiz[quiz.id] = QuizProgressState.fromJson(
+          quiz.questionCount,
+          quizRaw,
+        );
+      }
+    } catch (_) {
+      // Keep app functional even if local progress parsing fails.
+    }
+  }
+
+  Future<void> _saveProgressToLocal() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final payload = <String, dynamic>{};
+      progressByQuiz.forEach((quizId, state) {
+        payload[quizId.toString()] = state.toJson();
+      });
+      await prefs.setString(progressStorageKey, jsonEncode(payload));
+    } catch (_) {
+      // Ignore local save errors in this prototype stage.
+    }
+  }
+
   List<String> get gradeOptions {
     final grades = quizzes.map((q) => q.grade).toSet().toList()..sort();
     return ['All levels', ...grades];
@@ -271,9 +338,11 @@ class _StudentPortalPageState extends State<StudentPortalPage> {
     }).toList();
   }
 
-  bool isUnlocked(List<QuizItem> list, int index) {
-    if (index == 0) return true;
-    final previousQuiz = list[index - 1];
+  bool isQuizUnlocked(QuizItem quiz) {
+    final all = quizzes;
+    final index = all.indexWhere((item) => item.id == quiz.id);
+    if (index <= 0) return true;
+    final previousQuiz = all[index - 1];
     return progressByQuiz[previousQuiz.id]?.completed ?? false;
   }
 
@@ -325,10 +394,12 @@ class _StudentPortalPageState extends State<StudentPortalPage> {
           quiz: quiz,
           initialQuestionId: targetQuestionId!,
           state: state!,
+          onProgressChanged: _saveProgressToLocal,
         ),
       ),
     );
 
+    await _saveProgressToLocal();
     setState(() {});
   }
 
@@ -374,7 +445,7 @@ class _StudentPortalPageState extends State<StudentPortalPage> {
                     AdventureMap(
                       quizzes: visibleQuizzes,
                       progressByQuiz: progressByQuiz,
-                      isUnlocked: (index) => isUnlocked(visibleQuizzes, index),
+                      isUnlocked: (index) => isQuizUnlocked(visibleQuizzes[index]),
                       onNodeTap: (quiz) => startQuiz(quiz),
                     ),
                     const SizedBox(height: 10),
@@ -428,7 +499,7 @@ class _StudentPortalPageState extends State<StudentPortalPage> {
                               itemBuilder: (context, index) {
                                 final quiz = visibleQuizzes[index];
                                 final progress = progressByQuiz[quiz.id]!;
-                                final unlocked = isUnlocked(visibleQuizzes, index);
+                                final unlocked = isQuizUnlocked(quiz);
 
                                 return _QuizCard(
                                   quiz: quiz,
@@ -644,6 +715,11 @@ class AdventureMap extends StatelessWidget {
             'Adventure Path',
             style: TextStyle(fontWeight: FontWeight.w700),
           ),
+          const SizedBox(height: 2),
+          const Text(
+            'Complete quizzes in order to unlock the next node.',
+            style: TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
+          ),
           const SizedBox(height: 8),
           SizedBox(
             height: 136,
@@ -755,37 +831,80 @@ class _MapNodeWidget extends StatelessWidget {
       text = const Color(0xFF92400E);
     }
 
+    final stateText = !unlocked
+        ? 'LOCK'
+        : status == 'completed'
+            ? 'DONE'
+            : status == 'in_progress'
+                ? 'NOW'
+                : 'GO';
+
+    final labelTop = topOffset + 62;
+    final starsTop = labelTop + 18;
+
     return Align(
       alignment: Alignment.topCenter,
-      child: Padding(
-        padding: EdgeInsets.only(top: topOffset),
-        child: Column(
+      child: SizedBox(
+        width: 100,
+        height: 136,
+        child: Stack(
+          alignment: Alignment.topCenter,
           children: [
-            GestureDetector(
-              onTap: onTap,
-              child: Container(
-                width: 58,
-                height: 58,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: bg,
-                  border: Border.all(color: border, width: 3),
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  unlocked ? '$number' : '🔒',
-                  style: TextStyle(fontWeight: FontWeight.w800, color: text, fontSize: 18),
+            Positioned(
+              top: topOffset,
+              child: GestureDetector(
+                onTap: onTap,
+                child: Container(
+                  width: 58,
+                  height: 58,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: bg,
+                    border: Border.all(color: border, width: 3),
+                  ),
+                  alignment: Alignment.center,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        unlocked ? '$number' : '🔒',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          color: text,
+                          fontSize: 16,
+                        ),
+                      ),
+                      Text(
+                        stateText,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: text,
+                          fontSize: 8,
+                          letterSpacing: 0.4,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
-            const SizedBox(height: 3),
-            Text(
-              title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+            Positioned(
+              top: labelTop,
+              child: SizedBox(
+                width: 88,
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+                ),
+              ),
             ),
-            _StarRow(stars: stars),
+            Positioned(
+              top: starsTop,
+              child: _StarRow(stars: stars),
+            ),
           ],
         ),
       ),
@@ -801,6 +920,7 @@ class QuestionFlowPage extends StatefulWidget {
     required this.quiz,
     required this.initialQuestionId,
     required this.state,
+    required this.onProgressChanged,
   });
 
   final String baseUrl;
@@ -808,6 +928,7 @@ class QuestionFlowPage extends StatefulWidget {
   final QuizItem quiz;
   final int initialQuestionId;
   final QuizProgressState state;
+  final VoidCallback onProgressChanged;
 
   @override
   State<QuestionFlowPage> createState() => _QuestionFlowPageState();
@@ -905,6 +1026,7 @@ class _QuestionFlowPageState extends State<QuestionFlowPage> {
         }
         widget.state.currentQuestionId = nextId;
         widget.state.completed = isFinished;
+        widget.onProgressChanged();
 
         setState(() {
           answered = true;
