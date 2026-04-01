@@ -7,7 +7,15 @@ import 'package:mobile_app/models/question_payload.dart';
 import 'package:mobile_app/models/quiz_item.dart';
 
 class ApiService {
+  static const String configuredBaseUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: '',
+  );
+
   String get baseUrl {
+    if (configuredBaseUrl.isNotEmpty) {
+      return configuredBaseUrl;
+    }
     if (kIsWeb) {
       return 'http://127.0.0.1:8000';
     }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:mobile_app/models/quiz_item.dart';
 import 'package:mobile_app/models/quiz_progress_state.dart';
 import 'package:mobile_app/screens/question_flow_page.dart';
@@ -26,7 +27,9 @@ class _StudentPortalPageState extends State<StudentPortalPage> {
 
   List<QuizItem> quizzes = [];
   final Map<int, QuizProgressState> progressByQuiz = {};
-  String selectedGrade = 'All levels';
+  String? selectedGrade;
+  bool showListView = true;
+  bool showSearchBar = false;
 
   @override
   void initState() {
@@ -68,6 +71,11 @@ class _StudentPortalPageState extends State<StudentPortalPage> {
 
     try {
       final loaded = await apiService.fetchQuizzes(token: token!);
+      loaded.sort((a, b) {
+        final byOrder = a.sortOrder.compareTo(b.sortOrder);
+        if (byOrder != 0) return byOrder;
+        return a.id.compareTo(b.id);
+      });
       for (final quiz in loaded) {
         progressByQuiz.putIfAbsent(
           quiz.id,
@@ -109,16 +117,19 @@ class _StudentPortalPageState extends State<StudentPortalPage> {
     }
   }
 
-  List<String> get gradeOptions {
+  List<String> get gradeLevels {
     final grades = quizzes.map((q) => q.grade).toSet().toList()..sort();
-    return ['All levels', ...grades];
+    return grades;
   }
 
   List<QuizItem> get filteredQuizzes {
+    if (selectedGrade == null || !gradeLevels.contains(selectedGrade)) {
+      return [];
+    }
+
     final search = searchController.text.trim().toLowerCase();
     return quizzes.where((quiz) {
-      final gradeMatches =
-          selectedGrade == 'All levels' || quiz.grade == selectedGrade;
+      final gradeMatches = quiz.grade == selectedGrade;
       final textMatches =
           search.isEmpty ||
           quiz.title.toLowerCase().contains(search) ||
@@ -127,11 +138,27 @@ class _StudentPortalPageState extends State<StudentPortalPage> {
     }).toList();
   }
 
-  bool isQuizUnlocked(QuizItem quiz) {
-    final all = quizzes;
-    final index = all.indexWhere((item) => item.id == quiz.id);
+  List<QuizItem> orderedQuizzesForMap() {
+    if (selectedGrade == null || !gradeLevels.contains(selectedGrade)) {
+      return [];
+    }
+
+    final byLevel =
+        quizzes.where((quiz) => quiz.grade == selectedGrade).toList();
+
+    byLevel.sort((a, b) {
+      final byOrder = a.sortOrder.compareTo(b.sortOrder);
+      if (byOrder != 0) return byOrder;
+      return a.id.compareTo(b.id);
+    });
+
+    return byLevel;
+  }
+
+  bool isQuizUnlocked(QuizItem quiz, List<QuizItem> orderedQuizzes) {
+    final index = orderedQuizzes.indexWhere((item) => item.id == quiz.id);
     if (index <= 0) return true;
-    final previousQuiz = all[index - 1];
+    final previousQuiz = orderedQuizzes[index - 1];
     return progressByQuiz[previousQuiz.id]?.completed ?? false;
   }
 
@@ -139,8 +166,16 @@ class _StudentPortalPageState extends State<StudentPortalPage> {
     final state = progressByQuiz[quiz.id];
     if (state == null || token == null) return;
 
-    int? targetQuestionId = state.currentQuestionId;
-    if (targetQuestionId == null) {
+    // Completed quizzes should restart from a clean state (retake behavior).
+    if (state.completed) {
+      state.answeredQuestionIds.clear();
+      state.correctQuestionIds.clear();
+      state.currentQuestionId = null;
+      state.completed = false;
+    }
+
+    int targetQuestionId = state.currentQuestionId ?? 0;
+    if (targetQuestionId == 0) {
       try {
         targetQuestionId = await apiService.startQuiz(
           token: token!,
@@ -155,7 +190,7 @@ class _StudentPortalPageState extends State<StudentPortalPage> {
       }
     }
 
-    if (targetQuestionId == null || !mounted) return;
+    if (!mounted) return;
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder:
@@ -163,7 +198,7 @@ class _StudentPortalPageState extends State<StudentPortalPage> {
               apiService: apiService,
               token: token!,
               quiz: quiz,
-              initialQuestionId: targetQuestionId!,
+              initialQuestionId: targetQuestionId,
               state: state,
               onProgressChanged: _saveProgressToLocal,
             ),
@@ -182,18 +217,47 @@ class _StudentPortalPageState extends State<StudentPortalPage> {
 
   @override
   Widget build(BuildContext context) {
-    final visibleQuizzes = filteredQuizzes;
+    final hasSelectedLevel =
+        selectedGrade != null && gradeLevels.contains(selectedGrade);
+    final visibleQuizzes = hasSelectedLevel ? filteredQuizzes : <QuizItem>[];
+    final mapQuizzes = hasSelectedLevel ? orderedQuizzesForMap() : <QuizItem>[];
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Student Portal'),
+        titleSpacing: 10,
+        title: SizedBox(
+          height: 52,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Align(
+                alignment: Alignment.centerLeft,
+                child: _buildEqMark(size: 44),
+              ),
+              Transform.translate(
+                offset: const Offset(68, 0),
+                child: _buildWordmark(width: 220, height: 50),
+              ),
+            ],
+          ),
+        ),
         centerTitle: false,
         elevation: 0,
         scrolledUnderElevation: 0,
         actions: [
           IconButton(
-            onPressed: loading ? null : loadQuizzes,
-            icon: const Icon(Icons.refresh),
+            onPressed:
+                hasSelectedLevel
+                    ? () {
+                      setState(() {
+                        showSearchBar = !showSearchBar;
+                        if (!showSearchBar) {
+                          searchController.clear();
+                        }
+                      });
+                    }
+                    : null,
+            icon: Icon(showSearchBar ? Icons.close : Icons.search),
           ),
         ],
       ),
@@ -211,147 +275,235 @@ class _StudentPortalPageState extends State<StudentPortalPage> {
                 : SafeArea(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
-                    child: Column(
-                      children: [
-                        if (status != 'Ready')
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 8),
-                            child: Text(
-                              status,
-                              style: const TextStyle(fontSize: 13),
-                            ),
-                          ),
-                        AdventureMap(
-                          quizzes: visibleQuizzes,
-                          allQuizzes: quizzes,
-                          progressByQuiz: progressByQuiz,
-                          isUnlocked: (quiz) => isQuizUnlocked(quiz),
-                          onNodeTap: (quiz) => startQuiz(quiz),
-                        ),
-                        const SizedBox(height: 10),
-                        Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: const Color(0xFFDCE5F2)),
-                            boxShadow: const [
-                              BoxShadow(
-                                color: Color(0x10111A2B),
-                                blurRadius: 10,
-                                offset: Offset(0, 3),
+                    child: RefreshIndicator(
+                      onRefresh: () async {
+                        await loadQuizzes();
+                        await _loadProgressFromLocal();
+                        if (mounted) {
+                          setState(() {});
+                        }
+                      },
+                      child: ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        keyboardDismissBehavior:
+                            ScrollViewKeyboardDismissBehavior.onDrag,
+                        children: [
+                          if (status != 'Ready')
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 8),
+                              child: Text(
+                                status,
+                                style: const TextStyle(fontSize: 13),
                               ),
-                            ],
-                          ),
-                          child: LayoutBuilder(
-                            builder: (context, constraints) {
-                              final stackVertically =
-                                  constraints.maxWidth < 360;
-                              if (stackVertically) {
-                                return Column(
-                                  children: [
-                                    TextField(
-                                      controller: searchController,
-                                      onChanged: (_) => setState(() {}),
-                                      decoration: const InputDecoration(
-                                        hintText:
-                                            'Search by quiz title or subject...',
-                                        border: OutlineInputBorder(),
-                                        isDense: true,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Align(
-                                      alignment: Alignment.centerRight,
-                                      child: DropdownButton<String>(
-                                        value: selectedGrade,
-                                        onChanged: (value) {
-                                          if (value == null) return;
-                                          setState(() => selectedGrade = value);
-                                        },
-                                        items:
-                                            gradeOptions
-                                                .map(
-                                                  (grade) => DropdownMenuItem(
-                                                    value: grade,
-                                                    child: Text(grade),
-                                                  ),
-                                                )
-                                                .toList(),
-                                      ),
-                                    ),
-                                  ],
-                                );
-                              }
-
-                              return Row(
-                                children: [
-                                  Expanded(
-                                    child: TextField(
-                                      controller: searchController,
-                                      onChanged: (_) => setState(() {}),
-                                      decoration: const InputDecoration(
-                                        hintText:
-                                            'Search by quiz title or subject...',
-                                        border: OutlineInputBorder(),
-                                        isDense: true,
-                                      ),
-                                    ),
+                            ),
+                          if (!hasSelectedLevel)
+                            _buildLevelPicker()
+                          else ...[
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'Level: $selectedGrade',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF0F172A),
                                   ),
-                                  const SizedBox(width: 8),
-                                  DropdownButton<String>(
-                                    value: selectedGrade,
-                                    onChanged: (value) {
-                                      if (value == null) return;
-                                      setState(() => selectedGrade = value);
-                                    },
-                                    items:
-                                        gradeOptions
-                                            .map(
-                                              (grade) => DropdownMenuItem(
-                                                value: grade,
-                                                child: Text(grade),
-                                              ),
-                                            )
-                                            .toList(),
-                                  ),
-                                ],
-                              );
-                            },
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Expanded(
-                          child:
-                              visibleQuizzes.isEmpty
-                                  ? const Center(
+                                ),
+                                TextButton.icon(
+                                  onPressed: () {
+                                    setState(() {
+                                      selectedGrade = null;
+                                      showListView = true;
+                                      showSearchBar = false;
+                                      searchController.clear();
+                                    });
+                                  },
+                                  icon: const Icon(Icons.swap_horiz),
+                                  label: const Text('Change Level'),
+                                ),
+                              ],
+                            ),
+                            if (showSearchBar) _buildSearchPanel(),
+                            const SizedBox(height: 8),
+                            AdventureMap(
+                              quizzes: mapQuizzes,
+                              allQuizzes: mapQuizzes,
+                              progressByQuiz: progressByQuiz,
+                              isUnlocked:
+                                  (quiz) => isQuizUnlocked(quiz, mapQuizzes),
+                              onNodeTap: (quiz) => startQuiz(quiz),
+                            ),
+                            const SizedBox(height: 2),
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: TextButton.icon(
+                                onPressed: () {
+                                  setState(() => showListView = !showListView);
+                                },
+                                icon: Icon(
+                                  showListView
+                                      ? Icons.visibility_off
+                                      : Icons.visibility,
+                                ),
+                                label: Text(
+                                  showListView ? 'Hide List' : 'Show List',
+                                ),
+                              ),
+                            ),
+                            if (showListView) ...[
+                              const SizedBox(height: 4),
+                              if (visibleQuizzes.isEmpty)
+                                const Center(
+                                  child: Padding(
+                                    padding: EdgeInsets.symmetric(vertical: 12),
                                     child: Text(
                                       'No quizzes found for this filter.',
                                     ),
-                                  )
-                                  : ListView.builder(
-                                    itemCount: visibleQuizzes.length,
-                                    itemBuilder: (context, index) {
-                                      final quiz = visibleQuizzes[index];
-                                      final progress = progressByQuiz[quiz.id]!;
-                                      final unlocked = isQuizUnlocked(quiz);
-
-                                      return QuizCard(
-                                        quiz: quiz,
-                                        progress: progress,
-                                        unlocked: unlocked,
-                                        onStart:
-                                            unlocked
-                                                ? () => startQuiz(quiz)
-                                                : null,
-                                      );
-                                    },
                                   ),
-                        ),
-                      ],
+                                )
+                              else
+                                ...visibleQuizzes.map((quiz) {
+                                  final progress = progressByQuiz[quiz.id]!;
+                                  final unlocked = isQuizUnlocked(
+                                    quiz,
+                                    mapQuizzes,
+                                  );
+                                  return QuizCard(
+                                    quiz: quiz,
+                                    progress: progress,
+                                    unlocked: unlocked,
+                                    onStart:
+                                        unlocked ? () => startQuiz(quiz) : null,
+                                  );
+                                }),
+                            ],
+                          ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
+      ),
+    );
+  }
+
+  Widget _buildSearchPanel() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFDCE5F2)),
+      ),
+      child: TextField(
+        controller: searchController,
+        autofocus: true,
+        onChanged: (_) => setState(() {}),
+        decoration: InputDecoration(
+          hintText: 'Search quiz or subject...',
+          prefixIcon: const Icon(Icons.search),
+          border: const OutlineInputBorder(),
+          isDense: true,
+          suffixIcon:
+              searchController.text.isEmpty
+                  ? null
+                  : IconButton(
+                    onPressed: () {
+                      setState(() {
+                        searchController.clear();
+                      });
+                    },
+                    icon: const Icon(Icons.clear),
+                  ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLevelPicker() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFDCE5F2)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x10111A2B),
+            blurRadius: 10,
+            offset: Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Choose Your Level First',
+            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Pick a level to load its adventure path and quizzes.',
+            style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+          ),
+          const SizedBox(height: 10),
+          if (gradeLevels.isEmpty)
+            const Text(
+              'No levels found yet.',
+              style: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
+            )
+          else
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children:
+                  gradeLevels
+                      .map(
+                        (grade) => FilledButton.tonal(
+                          onPressed: () {
+                            setState(() {
+                              selectedGrade = grade;
+                              searchController.clear();
+                              showSearchBar = false;
+                              showListView = true;
+                            });
+                          },
+                          child: Text(grade),
+                        ),
+                      )
+                      .toList(),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEqMark({double size = 56}) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: SvgPicture.asset(
+          'assets/branding/eq_logo.svg',
+          fit: BoxFit.contain,
+          height: size,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWordmark({double width = 220, double height = 48}) {
+    return SizedBox(
+      width: width,
+      height: height,
+      child: SvgPicture.asset(
+        'assets/branding/text_logo.svg',
+        fit: BoxFit.contain,
+        height: height,
       ),
     );
   }

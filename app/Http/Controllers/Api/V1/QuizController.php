@@ -15,7 +15,8 @@ class QuizController extends Controller
     {
         $quizzes = Quiz::with('subject.grade')
             ->withCount('questions')
-            ->orderBy('title')
+            ->orderByRaw('COALESCE(sort_order, id)')
+            ->orderBy('id')
             ->get();
 
         return response()->json([
@@ -26,6 +27,7 @@ class QuizController extends Controller
                     'subject' => $quiz->subject?->name,
                     'grade' => $quiz->subject?->grade?->name,
                     'questions_count' => $quiz->questions_count,
+                    'sort_order' => (int) ($quiz->sort_order ?? $quiz->id),
                 ];
             }),
         ]);

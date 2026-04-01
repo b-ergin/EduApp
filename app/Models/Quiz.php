@@ -1,20 +1,22 @@
 <?php
 
 namespace App\Models;
+
 use App\Models\Question;
 use App\Models\Subject;
-
 use Illuminate\Database\Eloquent\Model;
 
 class Quiz extends Model
 {
-    protected $fillable = ['title', 'subject_id'];
+    protected $fillable = ['title', 'subject_id', 'sort_order'];
+
     public function questions()
     {
-    return $this->hasMany(Question::class);
+        return $this->hasMany(Question::class);
     }
+
     public function subject()
     {
-    return $this->belongsTo(Subject::class);
+        return $this->belongsTo(Subject::class);
     }
 }

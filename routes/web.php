@@ -29,7 +29,8 @@ Route::get('/quizzes', function (Request $request) {
     $quizzesQuery = Quiz::query()
         ->with('subject.grade')
         ->withCount('questions')
-        ->orderBy('title');
+        ->orderByRaw('COALESCE(sort_order, id)')
+        ->orderBy('id');
 
     if ($search !== '') {
         $quizzesQuery->where(function ($query) use ($search) {
@@ -131,7 +132,17 @@ Route::get('/quizzes/{quiz}/start', function (Request $request, Quiz $quiz) {
     $quizProgress = $progress[$quiz->id] ?? [];
 
     if (! $request->boolean('restart')) {
-        $orderedQuizIds = Quiz::orderBy('title')->pluck('id')->values();
+        $gradeId = $quiz->subject?->grade_id;
+        $orderedQuizIds = Quiz::query()
+            ->when($gradeId, function ($query) use ($gradeId) {
+                $query->whereHas('subject', function ($subjectQuery) use ($gradeId) {
+                    $subjectQuery->where('grade_id', $gradeId);
+                });
+            })
+            ->orderByRaw('COALESCE(sort_order, id)')
+            ->orderBy('id')
+            ->pluck('id')
+            ->values();
         $currentIndex = $orderedQuizIds->search($quiz->id);
         $previousQuizId = $currentIndex !== false && $currentIndex > 0 ? $orderedQuizIds[$currentIndex - 1] : null;
         $currentStatus = $quizProgress['completed'] ?? false
@@ -277,6 +288,7 @@ Route::prefix('admin')->group(function () {
 
         Route::resource('grades', GradeController::class)->except(['show'])->names('admin.grades');
         Route::resource('subjects', SubjectController::class)->except(['show'])->names('admin.subjects');
+        Route::post('quizzes/reorder', [QuizController::class, 'reorder'])->name('admin.quizzes.reorder');
         Route::resource('quizzes', QuizController::class)->except(['show'])->names('admin.quizzes');
         Route::resource('questions', QuestionController::class)->except(['show'])->names('admin.questions');
         Route::resource('choices', ChoiceController::class)->except(['show'])->names('admin.choices');

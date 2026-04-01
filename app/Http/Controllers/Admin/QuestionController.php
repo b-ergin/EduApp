@@ -11,20 +11,60 @@ use Illuminate\View\View;
 
 class QuestionController extends Controller
 {
-    public function index(): View
+    public function index(Request $request): View
     {
+        $selectedGradeId = (int) $request->query('grade_id', 0);
+        $selectedSubjectId = (int) $request->query('subject_id', 0);
+        $selectedQuizId = (int) $request->query('quiz_id', 0);
+
+        $questionsQuery = Question::with('quiz.subject.grade')->withCount('choices');
+
+        if ($selectedGradeId > 0) {
+            $questionsQuery->whereHas('quiz.subject', function ($query) use ($selectedGradeId) {
+                $query->where('grade_id', $selectedGradeId);
+            });
+        }
+
+        if ($selectedSubjectId > 0) {
+            $questionsQuery->whereHas('quiz', function ($query) use ($selectedSubjectId) {
+                $query->where('subject_id', $selectedSubjectId);
+            });
+        }
+
+        if ($selectedQuizId > 0) {
+            $questionsQuery->where('quiz_id', $selectedQuizId);
+        }
+
+        $selectedQuiz = $selectedQuizId > 0
+            ? Quiz::with('subject.grade')->find($selectedQuizId)
+            : null;
+
         return view('admin.questions.index', [
-            'questions' => Question::with('quiz.subject.grade')->withCount('choices')->latest('id')->paginate(12),
+            'questions' => $questionsQuery->latest('id')->paginate(12)->withQueryString(),
+            'quizzes' => Quiz::with('subject.grade')
+                ->orderByRaw('COALESCE(sort_order, id)')
+                ->orderBy('id')
+                ->get(),
+            'selectedGradeId' => $selectedGradeId,
+            'selectedSubjectId' => $selectedSubjectId,
+            'selectedQuizId' => $selectedQuizId,
+            'selectedQuiz' => $selectedQuiz,
         ]);
     }
 
-    public function create(): View
+    public function create(Request $request): View
     {
+        $selectedQuizId = (int) $request->query('quiz_id', 0);
+
         return view('admin.questions.create', [
-            'quizzes' => Quiz::with('subject.grade')->orderBy('title')->get(),
+            'quizzes' => Quiz::with('subject.grade')
+                ->orderByRaw('COALESCE(sort_order, id)')
+                ->orderBy('id')
+                ->get(),
             'question' => new Question(),
             'choices' => array_fill(0, 4, ''),
             'correctChoiceIndex' => 0,
+            'returnQuizId' => $selectedQuizId > 0 ? $selectedQuizId : null,
         ]);
     }
 
@@ -52,10 +92,13 @@ class QuestionController extends Controller
             ]);
         }
 
-        return redirect()->route('admin.questions.index')->with('status', 'Question and choices created successfully.');
+        $returnQuizId = (int) $request->input('return_quiz_id', 0);
+        $targetQuizId = $returnQuizId > 0 ? $returnQuizId : (int) $validated['quiz_id'];
+
+        return redirect()->route('admin.questions.index', ['quiz_id' => $targetQuizId])->with('status', 'Question and choices created successfully.');
     }
 
-    public function edit(Question $question): View
+    public function edit(Request $request, Question $question): View
     {
         $choices = $question->choices()->orderBy('id')->pluck('choice_text')->values()->all();
         $choices = array_pad($choices, 4, '');
@@ -71,9 +114,13 @@ class QuestionController extends Controller
 
         return view('admin.questions.edit', [
             'question' => $question,
-            'quizzes' => Quiz::with('subject.grade')->orderBy('title')->get(),
+            'quizzes' => Quiz::with('subject.grade')
+                ->orderByRaw('COALESCE(sort_order, id)')
+                ->orderBy('id')
+                ->get(),
             'choices' => $choices,
             'correctChoiceIndex' => $correctChoiceIndex,
+            'returnQuizId' => (int) $request->query('quiz_id', $question->quiz_id),
         ]);
     }
 
@@ -103,13 +150,17 @@ class QuestionController extends Controller
             ]);
         }
 
-        return redirect()->route('admin.questions.index')->with('status', 'Question and choices updated successfully.');
+        $returnQuizId = (int) $request->input('return_quiz_id', 0);
+        $targetQuizId = $returnQuizId > 0 ? $returnQuizId : (int) $validated['quiz_id'];
+
+        return redirect()->route('admin.questions.index', ['quiz_id' => $targetQuizId])->with('status', 'Question and choices updated successfully.');
     }
 
-    public function destroy(Question $question): RedirectResponse
+    public function destroy(Request $request, Question $question): RedirectResponse
     {
+        $returnQuizId = (int) $request->input('return_quiz_id', $question->quiz_id);
         $question->delete();
 
-        return redirect()->route('admin.questions.index')->with('status', 'Question deleted. Related choices were removed by cascade rules.');
+        return redirect()->route('admin.questions.index', ['quiz_id' => $returnQuizId])->with('status', 'Question deleted. Related choices were removed by cascade rules.');
     }
 }

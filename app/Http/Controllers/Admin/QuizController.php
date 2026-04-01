@@ -13,8 +13,28 @@ class QuizController extends Controller
 {
     public function index(): View
     {
+        $quizzes = Quiz::with('subject.grade')
+            ->withCount('questions')
+            ->orderByRaw('COALESCE(sort_order, id)')
+            ->orderBy('id')
+            ->get();
+
+        $groupedQuizzes = $quizzes
+            ->groupBy(fn (Quiz $quiz) => (int) ($quiz->subject?->grade?->id ?? 0))
+            ->map(function ($items, $gradeId) {
+                /** @var \App\Models\Quiz $first */
+                $first = $items->first();
+                return [
+                    'grade_id' => (int) $gradeId,
+                    'grade_name' => $first->subject?->grade?->name ?? 'Unassigned Grade',
+                    'quizzes' => $items->values(),
+                ];
+            })
+            ->sortBy('grade_name')
+            ->values();
+
         return view('admin.quizzes.index', [
-            'quizzes' => Quiz::with('subject.grade')->withCount('questions')->orderBy('title')->paginate(12),
+            'groupedQuizzes' => $groupedQuizzes,
         ]);
     }
 
@@ -31,6 +51,13 @@ class QuizController extends Controller
             'title' => ['required', 'string', 'max:255'],
             'subject_id' => ['required', 'integer', 'exists:subjects,id'],
         ]);
+
+        $subject = Subject::findOrFail((int) $validated['subject_id']);
+        $maxSortInGrade = Quiz::whereHas('subject', function ($query) use ($subject) {
+            $query->where('grade_id', $subject->grade_id);
+        })->max('sort_order');
+
+        $validated['sort_order'] = ((int) $maxSortInGrade) + 1;
 
         Quiz::create($validated);
 
@@ -62,5 +89,34 @@ class QuizController extends Controller
         $quiz->delete();
 
         return redirect()->route('admin.quizzes.index')->with('status', 'Quiz deleted. Related questions and choices were removed by cascade rules.');
+    }
+
+    public function reorder(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'grade_id' => ['required', 'integer'],
+            'order' => ['required', 'array', 'min:1'],
+            'order.*' => ['integer', 'exists:quizzes,id'],
+        ]);
+
+        $gradeId = (int) $validated['grade_id'];
+        $quizIds = array_map('intval', $validated['order']);
+        $countInGrade = Quiz::whereIn('id', $quizIds)
+            ->whereHas('subject', function ($query) use ($gradeId) {
+                $query->where('grade_id', $gradeId);
+            })
+            ->count();
+
+        if ($countInGrade !== count($quizIds)) {
+            return redirect()->route('admin.quizzes.index')->withErrors([
+                'order' => 'Invalid reorder payload for selected grade.',
+            ]);
+        }
+
+        foreach (array_values($validated['order']) as $index => $quizId) {
+            Quiz::where('id', (int) $quizId)->update(['sort_order' => $index + 1]);
+        }
+
+        return redirect()->route('admin.quizzes.index')->with('status', 'Quiz order updated for this grade.');
     }
 }

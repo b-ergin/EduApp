@@ -5,6 +5,7 @@ class QuizItem {
     required this.subject,
     required this.grade,
     required this.questionCount,
+    required this.sortOrder,
   });
 
   final int id;
@@ -12,6 +13,7 @@ class QuizItem {
   final String subject;
   final String grade;
   final int questionCount;
+  final int sortOrder;
 
   factory QuizItem.fromJson(Map<String, dynamic> json) {
     return QuizItem(
@@ -20,6 +22,10 @@ class QuizItem {
       subject: (json['subject'] ?? 'N/A').toString(),
       grade: (json['grade'] ?? 'N/A').toString(),
       questionCount: (json['questions_count'] as num?)?.toInt() ?? 0,
+      sortOrder:
+          (json['sort_order'] as num?)?.toInt() ??
+          (json['id'] as num?)?.toInt() ??
+          0,
     );
   }
 }

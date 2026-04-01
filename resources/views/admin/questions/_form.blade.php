@@ -15,6 +15,8 @@
     </select>
 </label>
 
+<input type="hidden" name="return_quiz_id" value="{{ (int) ($returnQuizId ?? old('return_quiz_id', $question->quiz_id ?? 0)) }}">
+
 <label for="question_text">Question Text
     <textarea id="question_text" name="question_text" rows="4" required>{{ old('question_text', $question->question_text ?? '') }}</textarea>
 </label>

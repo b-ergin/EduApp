@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:mobile_app/models/quiz_item.dart';
 import 'package:mobile_app/models/quiz_progress_state.dart';
@@ -76,6 +78,17 @@ class AdventureMap extends StatelessWidget {
                               number: _quizOrderNumber(quizzes[i]),
                               topOffset: i.isEven ? 4 : 34,
                               stars: progressByQuiz[quizzes[i].id]?.stars ?? 0,
+                              answeredCount:
+                                  progressByQuiz[quizzes[i].id]
+                                      ?.answeredCount ??
+                                  0,
+                              correctCount:
+                                  progressByQuiz[quizzes[i].id]?.correctCount ??
+                                  0,
+                              totalQuestions:
+                                  progressByQuiz[quizzes[i].id]
+                                      ?.totalQuestions ??
+                                  0,
                               status:
                                   progressByQuiz[quizzes[i].id]?.status ??
                                   'not_started',
@@ -141,6 +154,9 @@ class _MapNodeWidget extends StatelessWidget {
     required this.number,
     required this.topOffset,
     required this.stars,
+    required this.answeredCount,
+    required this.correctCount,
+    required this.totalQuestions,
     required this.status,
     required this.unlocked,
     required this.title,
@@ -150,6 +166,9 @@ class _MapNodeWidget extends StatelessWidget {
   final int number;
   final double topOffset;
   final int stars;
+  final int answeredCount;
+  final int correctCount;
+  final int totalQuestions;
   final String status;
   final bool unlocked;
   final String title;
@@ -175,16 +194,16 @@ class _MapNodeWidget extends StatelessWidget {
       text = const Color(0xFF92400E);
     }
 
-    final stateText =
-        !unlocked
-            ? 'LOCK'
-            : status == 'completed'
-            ? 'DONE'
-            : status == 'in_progress'
-            ? 'NOW'
-            : 'GO';
-    final labelTop = topOffset + 62;
+    final labelTop = topOffset + 72;
     final starsTop = labelTop + 18;
+    final segmentCount = _segmentCountForQuiz();
+    final progressSegments = _segmentsForProgress(segmentCount);
+    final ringColor =
+        status == 'completed'
+            ? const Color(0xFF22C55E)
+            : status == 'in_progress'
+            ? const Color(0xFF38BDF8)
+            : const Color(0xFFCBD5E1);
 
     return Align(
       alignment: Alignment.topCenter,
@@ -198,34 +217,34 @@ class _MapNodeWidget extends StatelessWidget {
               top: topOffset,
               child: GestureDetector(
                 onTap: onTap,
-                child: Container(
-                  width: 58,
-                  height: 58,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: bg,
-                    border: Border.all(color: border, width: 3),
-                  ),
-                  alignment: Alignment.center,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                child: SizedBox(
+                  width: 66,
+                  height: 66,
+                  child: Stack(
+                    alignment: Alignment.center,
                     children: [
-                      Text(
-                        unlocked ? '$number' : '🔒',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w800,
-                          color: text,
-                          fontSize: 16,
+                      SizedBox(
+                        width: 66,
+                        height: 66,
+                        child: CustomPaint(
+                          painter: _SegmentedRingPainter(
+                            totalSegments: segmentCount,
+                            activeSegments: progressSegments,
+                            activeColor: ringColor,
+                            trackColor: const Color(0xFFE5E7EB),
+                          ),
                         ),
                       ),
-                      Text(
-                        stateText,
-                        style: TextStyle(
-                          fontWeight: FontWeight.w700,
-                          color: text,
-                          fontSize: 8,
-                          letterSpacing: 0.4,
+                      Container(
+                        width: 50,
+                        height: 50,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: bg,
+                          border: Border.all(color: border, width: 3),
                         ),
+                        alignment: Alignment.center,
+                        child: _nodeInnerLabel(text),
                       ),
                     ],
                   ),
@@ -253,5 +272,116 @@ class _MapNodeWidget extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Widget _nodeInnerLabel(Color textColor) {
+    if (!unlocked) {
+      return Text(
+        '🔒',
+        style: TextStyle(
+          fontWeight: FontWeight.w800,
+          color: textColor,
+          fontSize: 16,
+        ),
+      );
+    }
+
+    if (status == 'completed' && totalQuestions > 0) {
+      return Text(
+        '$correctCount/$totalQuestions',
+        style: TextStyle(
+          fontWeight: FontWeight.w800,
+          color: textColor,
+          fontSize: 11,
+        ),
+      );
+    }
+
+    if (status == 'in_progress' || status == 'not_started') {
+      return Text(
+        '$number',
+        style: TextStyle(
+          fontWeight: FontWeight.w800,
+          color: textColor,
+          fontSize: 16,
+        ),
+      );
+    }
+
+    return const SizedBox.shrink();
+  }
+
+  int _segmentCountForQuiz() {
+    if (totalQuestions <= 0) return 4;
+    return totalQuestions < 4 ? totalQuestions : 4;
+  }
+
+  int _segmentsForProgress(int segmentCount) {
+    if (status == 'completed') return segmentCount;
+    if (status != 'in_progress' || totalQuestions <= 0 || answeredCount <= 0) {
+      return 0;
+    }
+
+    final scaled = ((answeredCount * segmentCount) / totalQuestions).ceil();
+    return scaled.clamp(1, segmentCount - 1);
+  }
+}
+
+class _SegmentedRingPainter extends CustomPainter {
+  _SegmentedRingPainter({
+    required this.totalSegments,
+    required this.activeSegments,
+    required this.activeColor,
+    required this.trackColor,
+  });
+
+  final int totalSegments;
+  final int activeSegments;
+  final Color activeColor;
+  final Color trackColor;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const double strokeWidth = 6;
+    const double gapDegrees = 16;
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = (size.width - strokeWidth) / 2;
+    final rect = Rect.fromCircle(center: center, radius: radius);
+
+    final sweepPerSegment =
+        (2 * math.pi / totalSegments) - (gapDegrees * math.pi / 180);
+    final gapRadians = gapDegrees * math.pi / 180;
+
+    final trackPaint =
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = strokeWidth
+          ..strokeCap = StrokeCap.round
+          ..color = trackColor;
+
+    final activePaint =
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = strokeWidth
+          ..strokeCap = StrokeCap.round
+          ..color = activeColor;
+
+    double startAngle = -math.pi / 2;
+    for (int i = 0; i < totalSegments; i++) {
+      canvas.drawArc(rect, startAngle, sweepPerSegment, false, trackPaint);
+      if (i < activeSegments) {
+        canvas.drawArc(rect, startAngle, sweepPerSegment, false, activePaint);
+      }
+      // Fill in a deterministic clockwise order (top -> right -> bottom -> left).
+      startAngle += sweepPerSegment + gapRadians;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _SegmentedRingPainter oldDelegate) {
+    return oldDelegate.totalSegments != totalSegments ||
+        oldDelegate.activeSegments != activeSegments ||
+        oldDelegate.activeColor != activeColor ||
+        oldDelegate.trackColor != trackColor;
   }
 }
