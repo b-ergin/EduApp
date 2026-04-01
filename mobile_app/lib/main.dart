@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -180,7 +181,6 @@ class StudentPortalPage extends StatefulWidget {
 }
 
 class _StudentPortalPageState extends State<StudentPortalPage> {
-  static const String baseUrl = 'http://127.0.0.1:8000';
   static const String progressStorageKey = 'eduapp_student_progress_v1';
   final TextEditingController searchController = TextEditingController();
 
@@ -191,6 +191,16 @@ class _StudentPortalPageState extends State<StudentPortalPage> {
   List<QuizItem> quizzes = [];
   final Map<int, QuizProgressState> progressByQuiz = {};
   String selectedGrade = 'All levels';
+
+  String get apiBaseUrl {
+    if (kIsWeb) {
+      return 'http://127.0.0.1:8000';
+    }
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      return 'http://10.0.2.2:8000';
+    }
+    return 'http://127.0.0.1:8000';
+  }
 
   @override
   void initState() {
@@ -213,7 +223,7 @@ class _StudentPortalPageState extends State<StudentPortalPage> {
 
     try {
       final response = await http.post(
-        Uri.parse('$baseUrl/api/v1/login'),
+        Uri.parse('$apiBaseUrl/api/v1/login'),
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json',
@@ -246,7 +256,7 @@ class _StudentPortalPageState extends State<StudentPortalPage> {
 
     try {
       final response = await http.get(
-        Uri.parse('$baseUrl/api/v1/quizzes'),
+        Uri.parse('$apiBaseUrl/api/v1/quizzes'),
         headers: {
           'Accept': 'application/json',
           'Authorization': 'Bearer $token',
@@ -354,7 +364,7 @@ class _StudentPortalPageState extends State<StudentPortalPage> {
     if (targetQuestionId == null) {
       try {
         final response = await http.get(
-          Uri.parse('$baseUrl/api/v1/quizzes/${quiz.id}/start'),
+          Uri.parse('$apiBaseUrl/api/v1/quizzes/${quiz.id}/start'),
           headers: {
             'Accept': 'application/json',
             'Authorization': 'Bearer $token',
@@ -389,7 +399,7 @@ class _StudentPortalPageState extends State<StudentPortalPage> {
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => QuestionFlowPage(
-          baseUrl: baseUrl,
+          baseUrl: apiBaseUrl,
           token: token!,
           quiz: quiz,
           initialQuestionId: targetQuestionId!,
