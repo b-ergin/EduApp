@@ -4,6 +4,7 @@ import 'package:mobile_app/models/choice_item.dart';
 import 'package:mobile_app/models/question_payload.dart';
 import 'package:mobile_app/models/quiz_item.dart';
 import 'package:mobile_app/models/quiz_progress_state.dart';
+import 'package:mobile_app/screens/quiz_result_page.dart';
 import 'package:mobile_app/services/api_service.dart';
 
 class QuestionFlowPage extends StatefulWidget {
@@ -28,7 +29,12 @@ class QuestionFlowPage extends StatefulWidget {
   State<QuestionFlowPage> createState() => _QuestionFlowPageState();
 }
 
-class _QuestionFlowPageState extends State<QuestionFlowPage> {
+class _QuestionFlowPageState extends State<QuestionFlowPage>
+    with SingleTickerProviderStateMixin {
+  static const String _fuzzyGoodTry = 'assets/mascot/fuzzy_goodtry.png';
+  static const String _fuzzyIdle = 'assets/mascot/fuzzy_idle.png';
+  static const String _fuzzyRight = 'assets/mascot/fuzzy_right.png';
+
   QuestionPayload? question;
   bool loading = true;
   String? error;
@@ -38,11 +44,25 @@ class _QuestionFlowPageState extends State<QuestionFlowPage> {
   int? correctChoiceId;
   int? nextQuestionId;
   bool finished = false;
+  bool showMascotMoment = false;
+  String mascotAsset = _fuzzyIdle;
+  String mascotCaption = '';
+  late final AnimationController _floatController;
 
   @override
   void initState() {
     super.initState();
+    _floatController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    )..repeat(reverse: true);
     _loadQuestion(widget.state.currentQuestionId ?? widget.initialQuestionId);
+  }
+
+  @override
+  void dispose() {
+    _floatController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadQuestion(int questionId) async {
@@ -55,6 +75,7 @@ class _QuestionFlowPageState extends State<QuestionFlowPage> {
       correctChoiceId = null;
       nextQuestionId = null;
       finished = false;
+      showMascotMoment = false;
     });
 
     try {
@@ -106,6 +127,12 @@ class _QuestionFlowPageState extends State<QuestionFlowPage> {
     }
     widget.onProgressChanged();
 
+    if (payload.isCorrect) {
+      _showMascotMoment(asset: _fuzzyRight, caption: 'Good job!');
+    } else {
+      _showMascotMoment(asset: _fuzzyGoodTry, caption: '');
+    }
+
     setState(() {
       answered = true;
       result = payload.isCorrect;
@@ -115,24 +142,48 @@ class _QuestionFlowPageState extends State<QuestionFlowPage> {
     });
   }
 
+  void _showMascotMoment({required String asset, required String caption}) {
+    setState(() {
+      mascotAsset = asset;
+      mascotCaption = caption;
+      showMascotMoment = true;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(widget.quiz.title)),
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xFFEEF6FF), Color(0xFFF4F7FB)],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
+      body: Stack(
+        children: [
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Color(0xFFEEF6FF), Color(0xFFF4F7FB)],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              ),
+            ),
+            child:
+                loading
+                    ? const Center(child: CircularProgressIndicator())
+                    : error != null
+                    ? Center(child: Text(error!))
+                    : _buildQuestionCard(),
           ),
-        ),
-        child:
-            loading
-                ? const Center(child: CircularProgressIndicator())
-                : error != null
-                ? Center(child: Text(error!))
-                : _buildQuestionCard(),
+          IgnorePointer(
+            ignoring: true,
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 340),
+              switchInCurve: Curves.easeOutBack,
+              switchOutCurve: Curves.easeIn,
+              child:
+                  showMascotMoment
+                      ? _buildMascotMoment()
+                      : const SizedBox.shrink(),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -143,139 +194,169 @@ class _QuestionFlowPageState extends State<QuestionFlowPage> {
         (q.imagePath ?? '').trim().isNotEmpty
             ? _resolveImageUrl(q.imagePath!)
             : null;
-    return Center(
+    return Align(
+      alignment: Alignment.topCenter,
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 430),
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(14),
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: const Color(0xFFE5E7EB)),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x14111A2B),
-                  blurRadius: 18,
-                  offset: Offset(0, 8),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Question ${q.currentIndex} of ${q.totalQuestions}',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: Color(0xFF6B7280),
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(999),
-                  child: LinearProgressIndicator(
-                    value: q.percent / 100,
-                    minHeight: 8,
-                    color: const Color(0xFF14B8A6),
-                    backgroundColor: const Color(0xFFE5E7EB),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                Text(
-                  q.questionText,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    height: 1.3,
-                  ),
-                ),
-                if (resolvedImageUrl != null) ...[
-                  const SizedBox(height: 10),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: Image.network(
-                      resolvedImageUrl,
-                      height: 180,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, _, __) => const SizedBox.shrink(),
+          padding: EdgeInsets.fromLTRB(14, answered ? 14 : 64, 14, 14),
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: const Color(0xFFE5E7EB)),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x14111A2B),
+                      blurRadius: 18,
+                      offset: Offset(0, 8),
                     ),
-                  ),
-                ],
-                const SizedBox(height: 12),
-                for (final choice in q.choices) _choiceTile(choice),
-                if (!answered)
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton(
-                      onPressed:
-                          selectedChoiceId == null ? null : _submitAnswer,
-                      style: FilledButton.styleFrom(
-                        backgroundColor: const Color(0xFF0F766E),
-                        foregroundColor: Colors.white,
-                      ),
-                      child: const Text('Submit Answer'),
-                    ),
-                  ),
-                if (answered) ...[
-                  const SizedBox(height: 10),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color:
-                          (result ?? false)
-                              ? const Color(0xFFDCFCE7)
-                              : const Color(0xFFFEE2E2),
-                      border: Border.all(
-                        color:
-                            (result ?? false)
-                                ? const Color(0xFF86EFAC)
-                                : const Color(0xFFFCA5A5),
-                      ),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(
-                      (result ?? false)
-                          ? 'Nice work, that is correct.'
-                          : 'Not quite, but good try.',
-                      style: TextStyle(
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Question ${q.currentIndex} of ${q.totalQuestions}',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: Color(0xFF6B7280),
                         fontWeight: FontWeight.w700,
-                        color:
-                            (result ?? false)
-                                ? const Color(0xFF166534)
-                                : const Color(0xFF991B1B),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 10),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton(
-                      onPressed: () {
-                        if (finished || nextQuestionId == null) {
-                          Navigator.of(context).pop();
-                        } else {
-                          _loadQuestion(nextQuestionId!);
-                        }
-                      },
-                      style: FilledButton.styleFrom(
-                        backgroundColor: const Color(0xFF0F766E),
-                        foregroundColor: Colors.white,
-                      ),
-                      child: Text(
-                        finished
-                            ? 'Back to Quiz Selection'
-                            : 'Continue to Next Question',
+                    const SizedBox(height: 8),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(999),
+                      child: LinearProgressIndicator(
+                        value: q.percent / 100,
+                        minHeight: 8,
+                        color: const Color(0xFF14B8A6),
+                        backgroundColor: const Color(0xFFE5E7EB),
                       ),
                     ),
+                    const SizedBox(height: 12),
+                    Text(
+                      q.questionText,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        height: 1.3,
+                      ),
+                    ),
+                    if (resolvedImageUrl != null) ...[
+                      const SizedBox(height: 10),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.network(
+                          resolvedImageUrl,
+                          height: 180,
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                          errorBuilder:
+                              (context, _, __) => const SizedBox.shrink(),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 12),
+                    for (final choice in q.choices) _choiceTile(choice),
+                    if (!answered)
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton(
+                          onPressed:
+                              selectedChoiceId == null ? null : _submitAnswer,
+                          style: FilledButton.styleFrom(
+                            backgroundColor: const Color(0xFF0F766E),
+                            foregroundColor: Colors.white,
+                          ),
+                          child: const Text('Submit Answer'),
+                        ),
+                      ),
+                    if (answered) ...[
+                      const SizedBox(height: 10),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color:
+                              (result ?? false)
+                                  ? const Color(0xFFDCFCE7)
+                                  : const Color(0xFFFEE2E2),
+                          border: Border.all(
+                            color:
+                                (result ?? false)
+                                    ? const Color(0xFF86EFAC)
+                                    : const Color(0xFFFCA5A5),
+                          ),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          (result ?? false)
+                              ? 'Nice work, that is correct.'
+                              : 'Not quite, but good try.',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            color:
+                                (result ?? false)
+                                    ? const Color(0xFF166534)
+                                    : const Color(0xFF991B1B),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton(
+                          onPressed: () {
+                            if (finished || nextQuestionId == null) {
+                              Navigator.of(context).pushReplacement(
+                                MaterialPageRoute(
+                                  builder:
+                                      (_) => QuizResultPage(
+                                        quiz: widget.quiz,
+                                        state: widget.state,
+                                      ),
+                                ),
+                              );
+                            } else {
+                              _loadQuestion(nextQuestionId!);
+                            }
+                          },
+                          style: FilledButton.styleFrom(
+                            backgroundColor: const Color(0xFF0F766E),
+                            foregroundColor: Colors.white,
+                          ),
+                          child: Text(
+                            finished
+                                ? 'View Results'
+                                : 'Continue to Next Question',
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              if (!answered)
+                Positioned(
+                  top: -58,
+                  right: 12,
+                  child: _buildFloatingMascotBubble(
+                    asset: _fuzzyIdle,
+                    caption: 'Pick your best answer!',
+                    mascotSize: 126,
+                    width: 234,
+                    height: 172,
+                    mascotVisualScale: 1.28,
+                    mascotYOffset: -45,
+                    mascotXOffset: 8,
                   ),
-                ],
-              ],
-            ),
+                ),
+            ],
           ),
         ),
       ),
@@ -340,5 +421,112 @@ class _QuestionFlowPageState extends State<QuestionFlowPage> {
       return '${widget.apiService.baseUrl}$trimmed';
     }
     return '${widget.apiService.baseUrl}/$trimmed';
+  }
+
+  Widget _buildMascotMoment() {
+    return Container(
+      key: ValueKey<String>('${mascotAsset}_$mascotCaption'),
+      color: Colors.transparent,
+      child: Padding(
+        padding: const EdgeInsets.only(top: 96, right: 12),
+        child: Align(
+          alignment: Alignment.topRight,
+          child: _buildFloatingMascotBubble(
+            asset: mascotAsset,
+            caption: mascotCaption,
+            mascotSize: 118,
+            width: 228,
+            height: 164,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFloatingMascotBubble({
+    required String asset,
+    required String caption,
+    required double mascotSize,
+    required double width,
+    required double height,
+    double mascotVisualScale = 1,
+    double mascotYOffset = 0,
+    double mascotXOffset = 0,
+  }) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.9, end: 1),
+      duration: const Duration(milliseconds: 280),
+      curve: Curves.easeOutBack,
+      builder: (context, scale, child) {
+        return AnimatedBuilder(
+          animation: _floatController,
+          builder: (context, inner) {
+            final t = _floatController.value;
+            final y = -4.0 + (t * 8.0);
+            final tilt = (-0.02 + (t * 0.04));
+            return Transform.translate(
+              offset: Offset(0, y),
+              child: Transform.rotate(
+                angle: tilt,
+                child: Transform.scale(scale: scale, child: inner),
+              ),
+            );
+          },
+          child: child,
+        );
+      },
+      child: SizedBox(
+        width: width,
+        height: height,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Positioned(
+              right: 2 - mascotXOffset,
+              top: 26 + mascotYOffset,
+              child: Image.asset(
+                asset,
+                width: mascotSize * mascotVisualScale,
+                height: mascotSize * mascotVisualScale,
+                fit: BoxFit.contain,
+              ),
+            ),
+            if (caption.trim().isNotEmpty)
+              Positioned(
+                right: mascotSize - 18,
+                top: 0,
+                child: Container(
+                  constraints: const BoxConstraints(maxWidth: 125),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 7,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFAFDFF),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFBAE6FD)),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x22111A2B),
+                        blurRadius: 8,
+                        offset: Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: Text(
+                    caption,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 12.5,
+                      color: Color(0xFF0F172A),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
   }
 }
