@@ -1,9 +1,6 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:mobile_app/models/quiz_item.dart';
 import 'package:mobile_app/models/quiz_progress_state.dart';
-import 'package:mobile_app/widgets/star_row.dart';
 
 class AdventureMap extends StatelessWidget {
   const AdventureMap({
@@ -21,11 +18,16 @@ class AdventureMap extends StatelessWidget {
   final bool Function(QuizItem quiz) isUnlocked;
   final void Function(QuizItem quiz) onNodeTap;
 
+  static const double _slotWidth = 128;
+  static const double _nodeImageWidth = 98;
+  static const double _nodeImageHeight = 78;
+  static const double _mapHeight = 188;
+
   @override
   Widget build(BuildContext context) {
-    if (quizzes.isEmpty) {
-      return const SizedBox.shrink();
-    }
+    if (quizzes.isEmpty) return const SizedBox.shrink();
+
+    final mapWidth = quizzes.length * _slotWidth;
 
     return Container(
       width: double.infinity,
@@ -56,53 +58,39 @@ class AdventureMap extends StatelessWidget {
             style: TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
           ),
           const SizedBox(height: 8),
-          SizedBox(
-            height: 140,
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: SizedBox(
-                width: quizzes.length * 108,
-                child: Stack(
-                  children: [
-                    Positioned.fill(
-                      child: CustomPaint(
-                        painter: _MapLinesPainter(nodeCount: quizzes.length),
-                      ),
-                    ),
-                    Row(
-                      children: [
-                        for (int i = 0; i < quizzes.length; i++)
-                          SizedBox(
-                            width: 108,
-                            child: _MapNodeWidget(
-                              number: _quizOrderNumber(quizzes[i]),
-                              topOffset: i.isEven ? 4 : 34,
-                              stars: progressByQuiz[quizzes[i].id]?.stars ?? 0,
-                              answeredCount:
-                                  progressByQuiz[quizzes[i].id]
-                                      ?.answeredCount ??
-                                  0,
-                              correctCount:
-                                  progressByQuiz[quizzes[i].id]?.correctCount ??
-                                  0,
-                              totalQuestions:
-                                  progressByQuiz[quizzes[i].id]
-                                      ?.totalQuestions ??
-                                  0,
-                              status:
-                                  progressByQuiz[quizzes[i].id]?.status ??
-                                  'not_started',
-                              unlocked: isUnlocked(quizzes[i]),
-                              title: quizzes[i].title,
-                              onTap:
-                                  isUnlocked(quizzes[i])
-                                      ? () => onNodeTap(quizzes[i])
-                                      : null,
+          ClipRRect(
+            borderRadius: BorderRadius.circular(14),
+            child: Container(
+              height: _mapHeight,
+              decoration: const BoxDecoration(
+                image: DecorationImage(
+                  image: AssetImage('assets/adventure/node_background.png'),
+                  fit: BoxFit.cover,
+                ),
+              ),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: SizedBox(
+                  width: mapWidth,
+                  child: Stack(
+                    children: [
+                      Positioned.fill(
+                        child: IgnorePointer(
+                          child: CustomPaint(
+                            painter: _MapPathPainter(
+                              anchors: List.generate(
+                                quizzes.length,
+                                _connectorAnchorsForIndex,
+                              ),
                             ),
                           ),
+                        ),
+                      ),
+                      for (int i = 0; i < quizzes.length; i++) ...[
+                        _buildNode(i),
                       ],
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -112,284 +100,245 @@ class AdventureMap extends StatelessWidget {
     );
   }
 
-  int _quizOrderNumber(QuizItem quiz) {
-    final index = allQuizzes.indexWhere((item) => item.id == quiz.id);
-    return index >= 0 ? index + 1 : 0;
-  }
-}
+  _PathAnchors _connectorAnchorsForIndex(int index) {
+    final left = index * _slotWidth;
+    final top = _nodeTop(index);
+    final centerX = left + (_slotWidth / 2);
 
-class _MapLinesPainter extends CustomPainter {
-  _MapLinesPainter({required this.nodeCount});
-
-  final int nodeCount;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint =
-        Paint()
-          ..color = const Color(0xFFCBD5E1)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 5
-          ..strokeCap = StrokeCap.round;
-
-    for (int i = 0; i < nodeCount - 1; i++) {
-      final x1 = 54.0 + (i * 108.0);
-      final x2 = 54.0 + ((i + 1) * 108.0);
-      final y1 = i.isEven ? 36.0 : 66.0;
-      final y2 = (i + 1).isEven ? 36.0 : 66.0;
-      final path =
-          Path()
-            ..moveTo(x1, y1)
-            ..quadraticBezierTo((x1 + x2) / 2, (y1 + y2) / 2 - 10, x2, y2);
-      canvas.drawPath(path, paint);
-    }
+    // Side anchors are intentionally calibrated to the house "door" zone.
+    final out = Offset(centerX + (_nodeImageWidth * 0.32), top + 52);
+    final incoming = Offset(centerX - (_nodeImageWidth * 0.32), top + 52);
+    return _PathAnchors(incoming: incoming, outgoing: out);
   }
 
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
+  Widget _buildNode(int i) {
+    final quiz = quizzes[i];
+    final state = progressByQuiz[quiz.id];
+    final unlocked = isUnlocked(quiz);
+    final nodeNumber = _quizOrderNumber(quiz);
+    final nodeAsset = _nodeAssetFor(state: state, unlocked: unlocked);
+    final titleTop = _titleTopFor(i, nodeAsset);
 
-class _MapNodeWidget extends StatelessWidget {
-  const _MapNodeWidget({
-    required this.number,
-    required this.topOffset,
-    required this.stars,
-    required this.answeredCount,
-    required this.correctCount,
-    required this.totalQuestions,
-    required this.status,
-    required this.unlocked,
-    required this.title,
-    required this.onTap,
-  });
+    final left = i * _slotWidth;
+    final top = _nodeTop(i);
 
-  final int number;
-  final double topOffset;
-  final int stars;
-  final int answeredCount;
-  final int correctCount;
-  final int totalQuestions;
-  final String status;
-  final bool unlocked;
-  final String title;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final effectiveStatus = unlocked ? status : 'locked';
-    final visibleStars = unlocked ? stars : 0;
-
-    Color bg = const Color(0xFFDBEAFE);
-    Color border = const Color(0xFF60A5FA);
-    Color text = const Color(0xFF1E3A8A);
-
-    if (!unlocked) {
-      bg = const Color(0xFFF3F4F6);
-      border = const Color(0xFFD1D5DB);
-      text = const Color(0xFF6B7280);
-    } else if (effectiveStatus == 'completed') {
-      bg = const Color(0xFFDCFCE7);
-      border = const Color(0xFF22C55E);
-      text = const Color(0xFF166534);
-    } else if (effectiveStatus == 'in_progress') {
-      bg = const Color(0xFFFEF3C7);
-      border = const Color(0xFFF59E0B);
-      text = const Color(0xFF92400E);
-    }
-
-    final labelTop = topOffset + 72;
-    final starsTop = labelTop + 18;
-    final segmentCount = _segmentCountForQuiz();
-    final progressSegments = _segmentsForProgress(
-      segmentCount,
-      effectiveStatus,
-    );
-    final ringColor =
-        effectiveStatus == 'completed'
-            ? const Color(0xFF22C55E)
-            : effectiveStatus == 'in_progress'
-            ? const Color(0xFF38BDF8)
-            : const Color(0xFFCBD5E1);
-
-    return Align(
-      alignment: Alignment.topCenter,
+    return Positioned(
+      left: left,
+      top: top,
       child: SizedBox(
-        width: 100,
-        height: 136,
+        width: _slotWidth,
+        height: 126,
         child: Stack(
-          alignment: Alignment.topCenter,
+          clipBehavior: Clip.none,
           children: [
             Positioned(
-              top: topOffset,
+              left: (_slotWidth - _nodeImageWidth) / 2,
+              top: 0,
               child: GestureDetector(
-                onTap: onTap,
+                onTap: unlocked ? () => onNodeTap(quiz) : null,
                 child: SizedBox(
-                  width: 66,
-                  height: 66,
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      SizedBox(
-                        width: 66,
-                        height: 66,
-                        child: CustomPaint(
-                          painter: _SegmentedRingPainter(
-                            totalSegments: segmentCount,
-                            activeSegments: progressSegments,
-                            activeColor: ringColor,
-                            trackColor: const Color(0xFFE5E7EB),
-                          ),
-                        ),
-                      ),
-                      Container(
-                        width: 50,
-                        height: 50,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: bg,
-                          border: Border.all(color: border, width: 3),
-                        ),
-                        alignment: Alignment.center,
-                        child: _nodeInnerLabel(text, effectiveStatus),
-                      ),
-                    ],
-                  ),
+                  width: _nodeImageWidth,
+                  height: _nodeImageHeight,
+                  child: Image.asset(nodeAsset, fit: BoxFit.contain),
                 ),
               ),
             ),
             Positioned(
-              top: labelTop,
-              child: SizedBox(
-                width: 88,
-                child: Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
+              left: (_slotWidth - _nodeImageWidth) / 2 + 6,
+              top: -2,
+              child: _NodeNumberBadge(number: nodeNumber, locked: !unlocked),
+            ),
+            Positioned(
+              top: titleTop,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: SizedBox(
+                  width: 92,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 1.5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xECFFF7E6),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(
+                        color: const Color(0xFFD7C18F),
+                        width: 0.9,
+                      ),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x29000000),
+                          blurRadius: 3,
+                          offset: Offset(0, 1),
+                        ),
+                      ],
+                    ),
+                    child: Text(
+                      quiz.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 10.8,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF1F2937),
+                        letterSpacing: 0.05,
+                      ),
+                    ),
                   ),
                 ),
               ),
             ),
-            Positioned(top: starsTop, child: StarRow(stars: visibleStars)),
           ],
         ),
       ),
     );
   }
 
-  Widget _nodeInnerLabel(Color textColor, String effectiveStatus) {
-    if (!unlocked) {
-      return Text(
-        '🔒',
-        style: TextStyle(
-          fontWeight: FontWeight.w800,
-          color: textColor,
-          fontSize: 16,
-        ),
-      );
+  String _nodeAssetFor({
+    required QuizProgressState? state,
+    required bool unlocked,
+  }) {
+    if (!unlocked) return 'assets/adventure/node_locked.png';
+
+    final stars = state?.stars ?? 0;
+    final everCompleted = state?.everCompleted ?? false;
+
+    // Keep best-score house visible during retakes.
+    if (everCompleted) {
+      if (stars >= 3) return 'assets/adventure/node_3stars.png';
+      if (stars == 2) return 'assets/adventure/node_2stars.png';
+      if (stars == 1) return 'assets/adventure/node_1star.png';
+      return 'assets/adventure/node_0stars.png';
     }
 
-    if (effectiveStatus == 'completed' && totalQuestions > 0) {
-      return Text(
-        '$correctCount/$totalQuestions',
-        style: TextStyle(
-          fontWeight: FontWeight.w800,
-          color: textColor,
-          fontSize: 11,
-        ),
-      );
-    }
-
-    if (effectiveStatus == 'in_progress' || effectiveStatus == 'not_started') {
-      return Text(
-        '$number',
-        style: TextStyle(
-          fontWeight: FontWeight.w800,
-          color: textColor,
-          fontSize: 16,
-        ),
-      );
-    }
-
-    return const SizedBox.shrink();
+    // Unlocked but never completed uses the dedicated unlocked house model.
+    return 'assets/adventure/node_unlocked.png';
   }
 
-  int _segmentCountForQuiz() {
-    if (totalQuestions <= 0) return 4;
-    return totalQuestions < 4 ? totalQuestions : 4;
+  double _titleTopFor(int index, String asset) {
+    // Uniform alignment strategy:
+    // 1) Start from node bottom.
+    // 2) Nudge by depth so low nodes don't look detached.
+    // 3) Slight extra pull-up for smaller locked/unlocked houses.
+    final base = _nodeTop(index) + _nodeImageHeight - 10;
+    final depthAdjust = index.isEven ? 8.0 : -8.0;
+    final sizeAdjust =
+        (asset.contains('node_locked') || asset.contains('node_unlocked'))
+            ? -6.0
+            : 0.0;
+    return base + depthAdjust + sizeAdjust;
   }
 
-  int _segmentsForProgress(int segmentCount, String effectiveStatus) {
-    if (effectiveStatus == 'completed') return segmentCount;
-    if (effectiveStatus != 'in_progress' ||
-        totalQuestions <= 0 ||
-        answeredCount <= 0) {
-      return 0;
-    }
+  double _nodeTop(int index) => index.isEven ? 8 : 44;
 
-    final scaled = ((answeredCount * segmentCount) / totalQuestions).ceil();
-    return scaled.clamp(1, segmentCount - 1);
+  int _quizOrderNumber(QuizItem quiz) {
+    final index = allQuizzes.indexWhere((item) => item.id == quiz.id);
+    return index >= 0 ? index + 1 : 0;
   }
 }
 
-class _SegmentedRingPainter extends CustomPainter {
-  _SegmentedRingPainter({
-    required this.totalSegments,
-    required this.activeSegments,
-    required this.activeColor,
-    required this.trackColor,
-  });
+class _PathAnchors {
+  const _PathAnchors({required this.incoming, required this.outgoing});
 
-  final int totalSegments;
-  final int activeSegments;
-  final Color activeColor;
-  final Color trackColor;
+  final Offset incoming;
+  final Offset outgoing;
+}
+
+class _MapPathPainter extends CustomPainter {
+  const _MapPathPainter({required this.anchors});
+
+  final List<_PathAnchors> anchors;
 
   @override
   void paint(Canvas canvas, Size size) {
-    const double strokeWidth = 6;
-    const double gapDegrees = 16;
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = (size.width - strokeWidth) / 2;
-    final rect = Rect.fromCircle(center: center, radius: radius);
+    if (anchors.length < 2) return;
 
-    final sweepPerSegment =
-        (2 * math.pi / totalSegments) - (gapDegrees * math.pi / 180);
-    final gapRadians = gapDegrees * math.pi / 180;
-
-    final trackPaint =
+    final edgePaint =
         Paint()
+          ..color = const Color(0x80B6924D)
           ..style = PaintingStyle.stroke
-          ..strokeWidth = strokeWidth
-          ..strokeCap = StrokeCap.round
-          ..color = trackColor;
+          ..strokeWidth = 11
+          ..strokeCap = StrokeCap.round;
 
-    final activePaint =
+    final basePaint =
         Paint()
+          ..color = const Color(0xFFECD9A8)
           ..style = PaintingStyle.stroke
-          ..strokeWidth = strokeWidth
-          ..strokeCap = StrokeCap.round
-          ..color = activeColor;
+          ..strokeWidth = 9
+          ..strokeCap = StrokeCap.round;
 
-    double startAngle = -math.pi / 2;
-    for (int i = 0; i < totalSegments; i++) {
-      canvas.drawArc(rect, startAngle, sweepPerSegment, false, trackPaint);
-      if (i < activeSegments) {
-        canvas.drawArc(rect, startAngle, sweepPerSegment, false, activePaint);
-      }
-      // Fill in a deterministic clockwise order (top -> right -> bottom -> left).
-      startAngle += sweepPerSegment + gapRadians;
+    final innerPaint =
+        Paint()
+          ..color = const Color(0xFFF7EBC8)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 5.5
+          ..strokeCap = StrokeCap.round;
+
+    for (int i = 0; i < anchors.length - 1; i++) {
+      final start = anchors[i].outgoing;
+      final end = anchors[i + 1].incoming;
+      final midX = (start.dx + end.dx) / 2;
+      final curveLift = (i.isEven ? -14.0 : 14.0);
+
+      final path =
+          Path()
+            ..moveTo(start.dx, start.dy)
+            ..cubicTo(
+              midX - 18,
+              start.dy + curveLift,
+              midX + 18,
+              end.dy - curveLift,
+              end.dx,
+              end.dy,
+            );
+
+      canvas.drawPath(path, edgePaint);
+      canvas.drawPath(path, basePaint);
+      canvas.drawPath(path, innerPaint);
     }
   }
 
   @override
-  bool shouldRepaint(covariant _SegmentedRingPainter oldDelegate) {
-    return oldDelegate.totalSegments != totalSegments ||
-        oldDelegate.activeSegments != activeSegments ||
-        oldDelegate.activeColor != activeColor ||
-        oldDelegate.trackColor != trackColor;
+  bool shouldRepaint(covariant _MapPathPainter oldDelegate) {
+    if (oldDelegate.anchors.length != anchors.length) return true;
+    for (int i = 0; i < anchors.length; i++) {
+      if (oldDelegate.anchors[i].incoming != anchors[i].incoming ||
+          oldDelegate.anchors[i].outgoing != anchors[i].outgoing) {
+        return true;
+      }
+    }
+    return false;
+  }
+}
+
+class _NodeNumberBadge extends StatelessWidget {
+  const _NodeNumberBadge({required this.number, required this.locked});
+
+  final int number;
+  final bool locked;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(minWidth: 24),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: locked ? const Color(0xFF334155) : const Color(0xFF0F766E),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: Colors.white, width: 1.4),
+      ),
+      child: Text(
+        '$number',
+        textAlign: TextAlign.center,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
   }
 }

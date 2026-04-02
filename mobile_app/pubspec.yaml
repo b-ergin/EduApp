@@ -64,6 +64,7 @@ flutter:
     - assets/branding/eq_logo.svg
     - assets/branding/text_logo.svg
     - assets/mascot/
+    - assets/adventure/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
