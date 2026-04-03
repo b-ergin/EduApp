@@ -11,12 +11,18 @@ class QuizCard extends StatelessWidget {
     required this.progress,
     required this.unlocked,
     required this.onStart,
+    this.unlockReason,
+    this.challengeEarnedStars,
+    this.challengeRequiredStars,
   });
 
   final QuizItem quiz;
   final QuizProgressState progress;
   final bool unlocked;
   final VoidCallback? onStart;
+  final String? unlockReason;
+  final int? challengeEarnedStars;
+  final int? challengeRequiredStars;
 
   @override
   Widget build(BuildContext context) {
@@ -52,37 +58,65 @@ class QuizCard extends StatelessWidget {
 
     return Opacity(
       opacity: unlocked ? 1 : 0.7,
-      child: Card(
-        elevation: 0,
-        surfaceTintColor: Colors.transparent,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 260),
+        curve: Curves.easeOutCubic,
         margin: const EdgeInsets.only(bottom: 8),
-        shape: RoundedRectangleBorder(
+        decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(14),
-          side: const BorderSide(color: Color(0xFFDCE5F2)),
+          border: Border.all(color: const Color(0xFFDCE5F2)),
+          color: Colors.white,
+          boxShadow:
+              unlocked
+                  ? const [
+                    BoxShadow(
+                      color: Color(0x11111A2B),
+                      blurRadius: 10,
+                      offset: Offset(0, 4),
+                    ),
+                  ]
+                  : null,
         ),
         child: Padding(
           padding: const EdgeInsets.all(10),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                quiz.title,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 16,
-                ),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      quiz.title,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 18,
+                      ),
+                    ),
+                  ),
+                  StarRow(stars: unlocked ? progress.stars : 0),
+                ],
               ),
               const SizedBox(height: 4),
               Text(
                 '${quiz.subject} • ${quiz.grade} • ${quiz.questionCount} questions',
-                style: const TextStyle(color: Color(0xFF6B7280), fontSize: 13),
+                style: const TextStyle(
+                  color: Color(0xFF6B7280),
+                  fontSize: 12.5,
+                ),
               ),
               const SizedBox(height: 8),
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   badge,
-                  StarRow(stars: unlocked ? progress.stars : 0),
+                  if (quiz.isChallenge) ...[
+                    const SizedBox(width: 8),
+                    const StatusBadge(
+                      label: 'Challenge',
+                      bg: Color(0xFFFEF3C7),
+                      border: Color(0xFFFDE68A),
+                      text: Color(0xFF92400E),
+                    ),
+                  ],
                 ],
               ),
               const SizedBox(height: 8),
@@ -98,10 +132,24 @@ class QuizCard extends StatelessWidget {
               const SizedBox(height: 6),
               Text(
                 unlocked
-                    ? '${progress.answeredCount}/${quiz.questionCount} answered (${progress.percent}%) • ${progress.correctCount} correct (${progress.scorePercent}%)'
-                    : 'Locked until previous quizzes are completed.',
+                    ? '${progress.answeredCount}/${quiz.questionCount} answered • ${progress.correctCount} correct'
+                    : (unlockReason ??
+                        'Locked until previous quizzes are completed.'),
                 style: const TextStyle(color: Color(0xFF6B7280), fontSize: 12),
               ),
+              if (!unlocked &&
+                  challengeEarnedStars != null &&
+                  challengeRequiredStars != null) ...[
+                const SizedBox(height: 4),
+                Text(
+                  'Challenge stars: $challengeEarnedStars / $challengeRequiredStars',
+                  style: const TextStyle(
+                    color: Color(0xFF9A3412),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
               const SizedBox(height: 8),
               SizedBox(
                 width: double.infinity,

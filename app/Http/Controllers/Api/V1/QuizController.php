@@ -28,6 +28,10 @@ class QuizController extends Controller
                     'grade' => $quiz->subject?->grade?->name,
                     'questions_count' => $quiz->questions_count,
                     'sort_order' => (int) ($quiz->sort_order ?? $quiz->id),
+                    'is_challenge' => (bool) $quiz->is_challenge,
+                    'challenge_window_size' => $quiz->challenge_window_size !== null ? (int) $quiz->challenge_window_size : null,
+                    'challenge_min_stars' => $quiz->challenge_min_stars !== null ? (int) $quiz->challenge_min_stars : null,
+                    'xp_weight' => (int) ($quiz->xp_weight ?? 3),
                 ];
             }),
         ]);

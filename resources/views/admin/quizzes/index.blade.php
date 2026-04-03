@@ -29,6 +29,8 @@
                         <th style="width:70px;">Move</th>
                         <th>Title</th>
                         <th>Subject</th>
+                        <th>Node Type</th>
+                        <th>XP</th>
                         <th>Questions</th>
                         <th>Actions</th>
                     </tr>
@@ -40,6 +42,21 @@
                         <td title="Drag to reorder">↕</td>
                         <td>{{ $quiz->title }}</td>
                         <td>{{ $quiz->subject?->name }}</td>
+                        <td>
+                            @if($quiz->is_challenge)
+                                <span style="display:inline-block; padding:2px 8px; border-radius:999px; background:#FEF3C7; border:1px solid #FDE68A; color:#92400E; font-size:12px; font-weight:700;">
+                                    Challenge
+                                </span>
+                                <div class="muted" style="font-size:12px; margin-top:4px;">
+                                    Last {{ $quiz->challenge_window_size }} quizzes: {{ $quiz->challenge_min_stars }} stars
+                                </div>
+                            @else
+                                <span style="display:inline-block; padding:2px 8px; border-radius:999px; background:#DBEAFE; border:1px solid #93C5FD; color:#1E3A8A; font-size:12px; font-weight:700;">
+                                    Standard
+                                </span>
+                            @endif
+                        </td>
+                        <td>{{ $quiz->xp_weight ?? 3 }}</td>
                         <td>{{ $quiz->questions_count }}</td>
                         <td class="actions">
                             <a class="btn" href="{{ route('admin.questions.index', ['quiz_id' => $quiz->id]) }}">Questions</a>

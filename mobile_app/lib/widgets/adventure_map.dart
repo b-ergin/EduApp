@@ -29,6 +29,10 @@ class AdventureMap extends StatelessWidget {
     if (quizzes.isEmpty) return const SizedBox.shrink();
 
     final mapWidth = (quizzes.length * _slotWidth) + (_mapSidePadding * 2);
+    final completedCount =
+        quizzes
+            .where((q) => (progressByQuiz[q.id]?.everCompleted ?? false))
+            .length;
 
     return Container(
       width: double.infinity,
@@ -86,6 +90,10 @@ class AdventureMap extends StatelessWidget {
                                 quizzes.length,
                                 _connectorAnchorsForIndex,
                               ),
+                              activeSegments: completedCount.clamp(
+                                0,
+                                quizzes.length > 1 ? quizzes.length - 1 : 0,
+                              ),
                             ),
                           ),
                         ),
@@ -122,6 +130,7 @@ class AdventureMap extends StatelessWidget {
     final nodeNumber = _quizOrderNumber(quiz);
     final nodeAsset = _nodeAssetFor(state: state, unlocked: unlocked);
     final titleTop = _titleTopFor(i, nodeAsset);
+    final status = unlocked ? (state?.status ?? 'not_started') : 'locked';
 
     final left = _mapSidePadding + (i * _slotWidth);
     final top = _nodeTop(i);
@@ -143,14 +152,22 @@ class AdventureMap extends StatelessWidget {
                 child: SizedBox(
                   width: _nodeImageWidth,
                   height: _nodeImageHeight,
-                  child: Image.asset(nodeAsset, fit: BoxFit.contain),
+                  child: _NodeSprite(
+                    asset: nodeAsset,
+                    status: status,
+                    isChallenge: quiz.isChallenge,
+                  ),
                 ),
               ),
             ),
             Positioned(
               left: (_slotWidth - _nodeImageWidth) / 2 + 6,
               top: -2,
-              child: _NodeNumberBadge(number: nodeNumber, locked: !unlocked),
+              child: _NodeNumberBadge(
+                number: nodeNumber,
+                locked: !unlocked,
+                isChallenge: quiz.isChallenge,
+              ),
             ),
             Positioned(
               top: titleTop,
@@ -248,9 +265,10 @@ class _PathAnchors {
 }
 
 class _MapPathPainter extends CustomPainter {
-  const _MapPathPainter({required this.anchors});
+  const _MapPathPainter({required this.anchors, required this.activeSegments});
 
   final List<_PathAnchors> anchors;
+  final int activeSegments;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -282,6 +300,7 @@ class _MapPathPainter extends CustomPainter {
       final end = anchors[i + 1].incoming;
       final midX = (start.dx + end.dx) / 2;
       final curveLift = (i.isEven ? -14.0 : 14.0);
+      final isActive = i < activeSegments;
 
       final path =
           Path()
@@ -296,14 +315,35 @@ class _MapPathPainter extends CustomPainter {
             );
 
       canvas.drawPath(path, edgePaint);
-      canvas.drawPath(path, basePaint);
-      canvas.drawPath(path, innerPaint);
+      canvas.drawPath(
+        path,
+        isActive
+            ? (Paint()
+              ..color = const Color(0xFFE8C97E)
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 9
+              ..strokeCap = StrokeCap.round)
+            : basePaint,
+      );
+      canvas.drawPath(
+        path,
+        isActive
+            ? (Paint()
+              ..color = const Color(0xFFFFF2CC)
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 5.5
+              ..strokeCap = StrokeCap.round)
+            : innerPaint,
+      );
     }
   }
 
   @override
   bool shouldRepaint(covariant _MapPathPainter oldDelegate) {
-    if (oldDelegate.anchors.length != anchors.length) return true;
+    if (oldDelegate.anchors.length != anchors.length ||
+        oldDelegate.activeSegments != activeSegments) {
+      return true;
+    }
     for (int i = 0; i < anchors.length; i++) {
       if (oldDelegate.anchors[i].incoming != anchors[i].incoming ||
           oldDelegate.anchors[i].outgoing != anchors[i].outgoing) {
@@ -315,10 +355,15 @@ class _MapPathPainter extends CustomPainter {
 }
 
 class _NodeNumberBadge extends StatelessWidget {
-  const _NodeNumberBadge({required this.number, required this.locked});
+  const _NodeNumberBadge({
+    required this.number,
+    required this.locked,
+    required this.isChallenge,
+  });
 
   final int number;
   final bool locked;
+  final bool isChallenge;
 
   @override
   Widget build(BuildContext context) {
@@ -330,15 +375,82 @@ class _NodeNumberBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(999),
         border: Border.all(color: Colors.white, width: 1.4),
       ),
-      child: Text(
-        '$number',
-        textAlign: TextAlign.center,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 11,
-          fontWeight: FontWeight.w800,
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            '$number',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          if (isChallenge) ...[
+            const SizedBox(width: 3),
+            const Icon(
+              Icons.emoji_events_rounded,
+              size: 11,
+              color: Colors.amber,
+            ),
+          ],
+        ],
       ),
+    );
+  }
+}
+
+class _NodeSprite extends StatefulWidget {
+  const _NodeSprite({
+    required this.asset,
+    required this.status,
+    required this.isChallenge,
+  });
+
+  final String asset;
+  final String status;
+  final bool isChallenge;
+
+  @override
+  State<_NodeSprite> createState() => _NodeSpriteState();
+}
+
+class _NodeSpriteState extends State<_NodeSprite>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1300),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final shouldPulse =
+        widget.status == 'in_progress' || widget.status == 'not_started';
+    final pulseStrength = widget.status == 'in_progress' ? 0.04 : 0.02;
+    final challengeBoost = widget.isChallenge ? 0.01 : 0;
+
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        final t = _controller.value;
+        final delta = shouldPulse ? ((t - 0.5).abs() * 2) : 0;
+        final scale = 1 - ((delta - 0.5) * (pulseStrength + challengeBoost));
+        return Transform.scale(scale: scale, child: child);
+      },
+      child: Image.asset(widget.asset, fit: BoxFit.contain),
     );
   }
 }

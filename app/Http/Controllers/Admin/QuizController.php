@@ -50,6 +50,10 @@ class QuizController extends Controller
         $validated = $request->validate([
             'title' => ['required', 'string', 'max:255'],
             'subject_id' => ['required', 'integer', 'exists:subjects,id'],
+            'is_challenge' => ['nullable', 'boolean'],
+            'challenge_window_size' => ['nullable', 'integer', 'min:1', 'max:50', 'required_if:is_challenge,1'],
+            'challenge_min_stars' => ['nullable', 'integer', 'min:1', 'max:150', 'required_if:is_challenge,1'],
+            'xp_weight' => ['required', 'integer', 'min:1', 'max:10'],
         ]);
 
         $subject = Subject::findOrFail((int) $validated['subject_id']);
@@ -58,6 +62,12 @@ class QuizController extends Controller
         })->max('sort_order');
 
         $validated['sort_order'] = ((int) $maxSortInGrade) + 1;
+        $validated['is_challenge'] = $request->boolean('is_challenge');
+
+        if (! $validated['is_challenge']) {
+            $validated['challenge_window_size'] = null;
+            $validated['challenge_min_stars'] = null;
+        }
 
         Quiz::create($validated);
 
@@ -77,7 +87,18 @@ class QuizController extends Controller
         $validated = $request->validate([
             'title' => ['required', 'string', 'max:255'],
             'subject_id' => ['required', 'integer', 'exists:subjects,id'],
+            'is_challenge' => ['nullable', 'boolean'],
+            'challenge_window_size' => ['nullable', 'integer', 'min:1', 'max:50', 'required_if:is_challenge,1'],
+            'challenge_min_stars' => ['nullable', 'integer', 'min:1', 'max:150', 'required_if:is_challenge,1'],
+            'xp_weight' => ['required', 'integer', 'min:1', 'max:10'],
         ]);
+
+        $validated['is_challenge'] = $request->boolean('is_challenge');
+
+        if (! $validated['is_challenge']) {
+            $validated['challenge_window_size'] = null;
+            $validated['challenge_min_stars'] = null;
+        }
 
         $quiz->update($validated);
 

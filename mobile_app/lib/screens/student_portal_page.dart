@@ -7,6 +7,7 @@ import 'package:mobile_app/services/api_service.dart';
 import 'package:mobile_app/services/progress_storage_service.dart';
 import 'package:mobile_app/widgets/adventure_map.dart';
 import 'package:mobile_app/widgets/quiz_card.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class StudentPortalPage extends StatefulWidget {
   const StudentPortalPage({super.key});
@@ -15,7 +16,65 @@ class StudentPortalPage extends StatefulWidget {
   State<StudentPortalPage> createState() => _StudentPortalPageState();
 }
 
+class _UnlockResult {
+  const _UnlockResult({
+    required this.unlocked,
+    this.reason,
+    this.challengeWindow,
+    this.challengeRequiredStars,
+    this.challengeEarnedStars,
+  });
+
+  final bool unlocked;
+  final String? reason;
+  final int? challengeWindow;
+  final int? challengeRequiredStars;
+  final int? challengeEarnedStars;
+}
+
+class _LevelSnapshot {
+  const _LevelSnapshot({
+    required this.totalQuizzes,
+    required this.completedQuizzes,
+    required this.totalStars,
+    required this.totalPossibleStars,
+    required this.streak,
+    required this.playerLevel,
+    required this.levelXpProgress,
+    required this.levelXpRequired,
+    required this.levelXpCurrent,
+  });
+
+  final int totalQuizzes;
+  final int completedQuizzes;
+  final int totalStars;
+  final int totalPossibleStars;
+  final int streak;
+  final int playerLevel;
+  final double levelXpProgress;
+  final int levelXpRequired;
+  final int levelXpCurrent;
+}
+
+class _PlayerLevelInfo {
+  const _PlayerLevelInfo({
+    required this.level,
+    required this.currentLevelXp,
+    required this.xpToNextLevel,
+    required this.progress,
+  });
+
+  final int level;
+  final int currentLevelXp;
+  final int xpToNextLevel;
+  final double progress;
+}
+
 class _StudentPortalPageState extends State<StudentPortalPage> {
+  static const String _fuzzyHappy = 'assets/mascot/fuzzy_happy.png';
+  static const String _streakCountKey = 'eduapp_daily_streak_count_v1';
+  static const String _streakAnchorDateKey = 'eduapp_daily_streak_anchor_v1';
+
   final TextEditingController searchController = TextEditingController();
   final ApiService apiService = ApiService();
   final ProgressStorageService progressStorageService =
@@ -30,6 +89,8 @@ class _StudentPortalPageState extends State<StudentPortalPage> {
   String? selectedGrade;
   bool showListView = true;
   bool showSearchBar = false;
+  int _dailyStreakCount = 0;
+  DateTime? _streakAnchorDate;
 
   @override
   void initState() {
@@ -41,6 +102,8 @@ class _StudentPortalPageState extends State<StudentPortalPage> {
     await login();
     await loadQuizzes();
     await _loadProgressFromLocal();
+    await _loadStreakFromLocal();
+    await _ensureNonZeroStreak();
     if (mounted) {
       setState(() {});
     }
@@ -117,6 +180,78 @@ class _StudentPortalPageState extends State<StudentPortalPage> {
     }
   }
 
+  Future<void> _loadStreakFromLocal() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final storedCount = prefs.getInt(_streakCountKey) ?? 0;
+      final storedDate = prefs.getString(_streakAnchorDateKey);
+      DateTime? parsed;
+      if (storedDate != null && storedDate.trim().isNotEmpty) {
+        parsed = DateTime.tryParse(storedDate);
+      }
+      _dailyStreakCount = storedCount;
+      _streakAnchorDate = parsed;
+    } catch (_) {
+      // Ignore broken local streak cache.
+    }
+  }
+
+  Future<void> _saveStreakToLocal() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt(_streakCountKey, _dailyStreakCount);
+      if (_streakAnchorDate != null) {
+        final normalized = DateTime(
+          _streakAnchorDate!.year,
+          _streakAnchorDate!.month,
+          _streakAnchorDate!.day,
+        );
+        await prefs.setString(
+          _streakAnchorDateKey,
+          normalized.toIso8601String(),
+        );
+      }
+    } catch (_) {
+      // Ignore local write failure in prototype.
+    }
+  }
+
+  Future<void> _ensureNonZeroStreak() async {
+    if (_dailyStreakCount > 0 && _streakAnchorDate != null) return;
+    _dailyStreakCount = 1;
+    _streakAnchorDate = DateTime.now();
+    await _saveStreakToLocal();
+  }
+
+  int _daysBetween(DateTime a, DateTime b) {
+    final start = DateTime(a.year, a.month, a.day);
+    final end = DateTime(b.year, b.month, b.day);
+    return end.difference(start).inDays;
+  }
+
+  Future<void> _registerPlayActivity() async {
+    final today = DateTime.now();
+    if (_streakAnchorDate == null || _dailyStreakCount <= 0) {
+      _dailyStreakCount = 1;
+      _streakAnchorDate = today;
+      await _saveStreakToLocal();
+      return;
+    }
+
+    final dayGap = _daysBetween(_streakAnchorDate!, today);
+    if (dayGap <= 0) {
+      return; // already counted today
+    }
+    if (dayGap <= 2) {
+      // Includes one missed day grace period.
+      _dailyStreakCount += 1;
+    } else {
+      _dailyStreakCount = 1;
+    }
+    _streakAnchorDate = today;
+    await _saveStreakToLocal();
+  }
+
   List<String> get gradeLevels {
     final grades = quizzes.map((q) => q.grade).toSet().toList()..sort();
     return grades;
@@ -156,17 +291,118 @@ class _StudentPortalPageState extends State<StudentPortalPage> {
   }
 
   bool isQuizUnlocked(QuizItem quiz, List<QuizItem> orderedQuizzes) {
+    return _unlockFor(quiz, orderedQuizzes).unlocked;
+  }
+
+  _UnlockResult _unlockFor(QuizItem quiz, List<QuizItem> orderedQuizzes) {
     final index = orderedQuizzes.indexWhere((item) => item.id == quiz.id);
-    if (index <= 0) return true;
+    if (index <= 0) return const _UnlockResult(unlocked: true);
 
     // Strict chain unlock: every prior node in this level path must be
     // completed at least once.
     for (int i = 0; i < index; i++) {
       final priorQuiz = orderedQuizzes[i];
       final done = progressByQuiz[priorQuiz.id]?.everCompleted ?? false;
-      if (!done) return false;
+      if (!done) {
+        return const _UnlockResult(
+          unlocked: false,
+          reason: 'Finish previous nodes first.',
+        );
+      }
     }
-    return true;
+
+    if (quiz.isChallenge) {
+      final window = (quiz.challengeWindowSize ?? 0).clamp(1, index);
+      final requiredStars = (quiz.challengeMinStars ?? 0).clamp(1, 999);
+      final start = (index - window).clamp(0, index);
+      final recent = orderedQuizzes.sublist(start, index);
+      final earnedStars = recent.fold<int>(
+        0,
+        (sum, item) => sum + (progressByQuiz[item.id]?.stars ?? 0),
+      );
+
+      if (earnedStars < requiredStars) {
+        return _UnlockResult(
+          unlocked: false,
+          reason: 'Need $requiredStars stars from last $window quizzes.',
+          challengeWindow: window,
+          challengeRequiredStars: requiredStars,
+          challengeEarnedStars: earnedStars,
+        );
+      }
+    }
+
+    return const _UnlockResult(unlocked: true);
+  }
+
+  _PlayerLevelInfo _computePlayerLevel(int totalXp) {
+    int level = 1;
+    int remaining = totalXp;
+
+    int xpNeededForLevel(int currentLevel) => 180 + ((currentLevel - 1) * 45);
+
+    int threshold = xpNeededForLevel(level);
+    while (remaining >= threshold) {
+      remaining -= threshold;
+      level += 1;
+      threshold = xpNeededForLevel(level);
+    }
+
+    final progress = threshold <= 0 ? 0.0 : remaining / threshold;
+    return _PlayerLevelInfo(
+      level: level,
+      currentLevelXp: remaining,
+      xpToNextLevel: threshold,
+      progress: progress.clamp(0, 1),
+    );
+  }
+
+  int _quizEarnedXp(QuizItem quiz, QuizProgressState state) {
+    if (!state.everCompleted) {
+      return 0;
+    }
+    final xpWeight = quiz.xpWeight.clamp(1, 10);
+    final questions = quiz.questionCount > 0 ? quiz.questionCount : 1;
+    final cap = questions * xpWeight * 12;
+    final scoreXp = ((cap * state.bestScorePercent) / 100).round();
+    final completionBonus = xpWeight * 20;
+    return scoreXp + completionBonus;
+  }
+
+  _LevelSnapshot _levelSnapshot(List<QuizItem> orderedQuizzes) {
+    int completed = 0;
+    int stars = 0;
+    int totalXp = 0;
+
+    for (final quiz in orderedQuizzes) {
+      final state = progressByQuiz[quiz.id];
+      if (state == null) continue;
+      if (state.everCompleted) {
+        completed++;
+      }
+      stars += state.stars;
+    }
+
+    // XP level is global across all quizzes, not limited to currently selected
+    // grade path.
+    for (final quiz in quizzes) {
+      final state = progressByQuiz[quiz.id];
+      if (state == null) continue;
+      totalXp += _quizEarnedXp(quiz, state);
+    }
+    final levelInfo = _computePlayerLevel(totalXp);
+
+    return _LevelSnapshot(
+      totalQuizzes: orderedQuizzes.length,
+      completedQuizzes: completed,
+      totalStars: stars,
+      totalPossibleStars: orderedQuizzes.length * 3,
+      streak: _dailyStreakCount <= 0 ? 1 : _dailyStreakCount,
+      playerLevel: levelInfo.level,
+      levelXpProgress: levelInfo.progress,
+      levelXpRequired: levelInfo.xpToNextLevel,
+      levelXpCurrent: levelInfo.currentLevelXp,
+    );
   }
 
   Future<void> startQuiz(QuizItem quiz) async {
@@ -174,6 +410,7 @@ class _StudentPortalPageState extends State<StudentPortalPage> {
     if (state == null || token == null) return;
 
     int targetQuestionId = state.currentQuestionId ?? 0;
+    final answeredBefore = state.answeredCount;
     if (targetQuestionId == 0) {
       try {
         targetQuestionId = await apiService.startQuiz(
@@ -209,6 +446,9 @@ class _StudentPortalPageState extends State<StudentPortalPage> {
       ),
     );
 
+    if (state.answeredCount > answeredBefore) {
+      await _registerPlayActivity();
+    }
     await _saveProgressToLocal();
     setState(() {});
   }
@@ -225,6 +465,7 @@ class _StudentPortalPageState extends State<StudentPortalPage> {
         selectedGrade != null && gradeLevels.contains(selectedGrade);
     final visibleQuizzes = hasSelectedLevel ? filteredQuizzes : <QuizItem>[];
     final mapQuizzes = hasSelectedLevel ? orderedQuizzesForMap() : <QuizItem>[];
+    final levelSnapshot = _levelSnapshot(mapQuizzes);
 
     return Scaffold(
       appBar: AppBar(
@@ -327,6 +568,9 @@ class _StudentPortalPageState extends State<StudentPortalPage> {
                                 ),
                               ],
                             ),
+                            const SizedBox(height: 4),
+                            _buildProgressHeader(levelSnapshot),
+                            _buildGuideBanner(),
                             if (showSearchBar) _buildSearchPanel(),
                             const SizedBox(height: 8),
                             AdventureMap(
@@ -366,18 +610,43 @@ class _StudentPortalPageState extends State<StudentPortalPage> {
                                   ),
                                 )
                               else
-                                ...visibleQuizzes.map((quiz) {
+                                ...visibleQuizzes.asMap().entries.map((entry) {
+                                  final index = entry.key;
+                                  final quiz = entry.value;
                                   final progress = progressByQuiz[quiz.id]!;
-                                  final unlocked = isQuizUnlocked(
+                                  final unlockState = _unlockFor(
                                     quiz,
                                     mapQuizzes,
                                   );
-                                  return QuizCard(
-                                    quiz: quiz,
-                                    progress: progress,
-                                    unlocked: unlocked,
-                                    onStart:
-                                        unlocked ? () => startQuiz(quiz) : null,
+                                  return TweenAnimationBuilder<double>(
+                                    tween: Tween(begin: 0, end: 1),
+                                    duration: Duration(
+                                      milliseconds: 280 + (index * 50),
+                                    ),
+                                    curve: Curves.easeOutCubic,
+                                    builder: (context, t, child) {
+                                      return Opacity(
+                                        opacity: t,
+                                        child: Transform.translate(
+                                          offset: Offset(0, (1 - t) * 16),
+                                          child: child,
+                                        ),
+                                      );
+                                    },
+                                    child: QuizCard(
+                                      quiz: quiz,
+                                      progress: progress,
+                                      unlocked: unlockState.unlocked,
+                                      unlockReason: unlockState.reason,
+                                      challengeEarnedStars:
+                                          unlockState.challengeEarnedStars,
+                                      challengeRequiredStars:
+                                          unlockState.challengeRequiredStars,
+                                      onStart:
+                                          unlockState.unlocked
+                                              ? () => startQuiz(quiz)
+                                              : null,
+                                    ),
                                   );
                                 }),
                             ],
@@ -387,6 +656,134 @@ class _StudentPortalPageState extends State<StudentPortalPage> {
                     ),
                   ),
                 ),
+      ),
+    );
+  }
+
+  Widget _buildProgressHeader(_LevelSnapshot snapshot) {
+    final progress = snapshot.levelXpProgress;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        gradient: const LinearGradient(
+          colors: [Color(0xFF0F766E), Color(0xFF14B8A6)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x220F766E),
+            blurRadius: 12,
+            offset: Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              _statPill(
+                icon: Icons.rocket_launch_rounded,
+                label: 'Level ${snapshot.playerLevel}',
+              ),
+              const SizedBox(width: 6),
+              _statPill(
+                icon: Icons.local_fire_department_rounded,
+                label: '${snapshot.streak} streak',
+              ),
+              const Spacer(),
+              Text(
+                '${snapshot.totalStars}/${snapshot.totalPossibleStars} stars',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 8,
+              backgroundColor: const Color(0x55FFFFFF),
+              valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Align(
+            alignment: Alignment.centerRight,
+            child: Text(
+              'Level ${snapshot.playerLevel} • ${snapshot.levelXpCurrent}/${snapshot.levelXpRequired} XP',
+              style: const TextStyle(color: Colors.white70, fontSize: 11.5),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGuideBanner() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF0FDFA),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFF99F6E4)),
+      ),
+      child: Row(
+        children: [
+          TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0.95, end: 1.05),
+            duration: const Duration(milliseconds: 900),
+            curve: Curves.easeInOut,
+            builder: (context, scale, child) {
+              return Transform.scale(scale: scale, child: child);
+            },
+            child: Image.asset(_fuzzyHappy, width: 42, height: 42),
+          ),
+          const SizedBox(width: 8),
+          const Expanded(
+            child: Text(
+              'Fuzzy tip: Finish nodes in order, then unlock challenge levels with stars.',
+              style: TextStyle(
+                color: Color(0xFF0F766E),
+                fontWeight: FontWeight.w700,
+                fontSize: 12,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _statPill({required IconData icon, required String label}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        color: const Color(0x2AFFFFFF),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: Colors.white),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
+              fontSize: 12,
+            ),
+          ),
+        ],
       ),
     );
   }
