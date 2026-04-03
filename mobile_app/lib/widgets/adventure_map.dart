@@ -22,12 +22,13 @@ class AdventureMap extends StatelessWidget {
   static const double _nodeImageWidth = 98;
   static const double _nodeImageHeight = 78;
   static const double _mapHeight = 188;
+  static const double _mapSidePadding = 16;
 
   @override
   Widget build(BuildContext context) {
     if (quizzes.isEmpty) return const SizedBox.shrink();
 
-    final mapWidth = quizzes.length * _slotWidth;
+    final mapWidth = (quizzes.length * _slotWidth) + (_mapSidePadding * 2);
 
     return Container(
       width: double.infinity,
@@ -101,7 +102,7 @@ class AdventureMap extends StatelessWidget {
   }
 
   _PathAnchors _connectorAnchorsForIndex(int index) {
-    final left = index * _slotWidth;
+    final left = _mapSidePadding + (index * _slotWidth);
     final top = _nodeTop(index);
     final centerX = left + (_slotWidth / 2);
 
@@ -119,7 +120,7 @@ class AdventureMap extends StatelessWidget {
     final nodeAsset = _nodeAssetFor(state: state, unlocked: unlocked);
     final titleTop = _titleTopFor(i, nodeAsset);
 
-    final left = i * _slotWidth;
+    final left = _mapSidePadding + (i * _slotWidth);
     final top = _nodeTop(i);
 
     return Positioned(
@@ -154,10 +155,10 @@ class AdventureMap extends StatelessWidget {
               right: 0,
               child: Center(
                 child: SizedBox(
-                  width: 92,
+                  width: 86,
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
+                      horizontal: 5,
                       vertical: 1.5,
                     ),
                     decoration: BoxDecoration(
@@ -181,7 +182,7 @@ class AdventureMap extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       textAlign: TextAlign.center,
                       style: const TextStyle(
-                        fontSize: 10.8,
+                        fontSize: 10.5,
                         fontWeight: FontWeight.w800,
                         color: Color(0xFF1F2937),
                         letterSpacing: 0.05,
@@ -219,17 +220,13 @@ class AdventureMap extends StatelessWidget {
   }
 
   double _titleTopFor(int index, String asset) {
-    // Uniform alignment strategy:
-    // 1) Start from node bottom.
-    // 2) Nudge by depth so low nodes don't look detached.
-    // 3) Slight extra pull-up for smaller locked/unlocked houses.
-    final base = _nodeTop(index) + _nodeImageHeight - 10;
-    final depthAdjust = index.isEven ? 8.0 : -8.0;
-    final sizeAdjust =
-        (asset.contains('node_locked') || asset.contains('node_unlocked'))
-            ? -6.0
-            : 0.0;
-    return base + depthAdjust + sizeAdjust;
+    // Local stack coordinates only: node depth is already handled by _nodeTop.
+    // Locked/unlocked house sprites have extra transparent lower area, so their
+    // labels need to sit slightly higher to match starred house alignment.
+    if (asset.contains('node_locked') || asset.contains('node_unlocked')) {
+      return _nodeImageHeight - (index.isEven ? 14 : 8);
+    }
+    return _nodeImageHeight + 1;
   }
 
   double _nodeTop(int index) => index.isEven ? 8 : 44;
