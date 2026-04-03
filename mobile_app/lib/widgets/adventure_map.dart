@@ -66,7 +66,10 @@ class AdventureMap extends StatelessWidget {
               decoration: const BoxDecoration(
                 image: DecorationImage(
                   image: AssetImage('assets/adventure/node_background.png'),
-                  fit: BoxFit.cover,
+                  fit: BoxFit.none,
+                  repeat: ImageRepeat.repeat,
+                  alignment: Alignment.topLeft,
+                  scale: 2.6,
                 ),
               ),
               child: SingleChildScrollView(
